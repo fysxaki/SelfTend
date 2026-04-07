@@ -26,6 +26,7 @@ export interface Task {
   sort_order: number
   completed_today?: boolean
   completed_this_week?: boolean
+  completed_in_season?: boolean
 }
 
 export interface TaskLog {

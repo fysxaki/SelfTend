@@ -11,11 +11,26 @@ import (
 	"selftend/model"
 )
 
-// GetTasks 获取某赛季的任务，可按 type 过滤，并聚合完成状态
+// TaskWithStatus 在 Task 基础上附加完成状态
+type TaskWithStatus struct {
+	model.Task
+	CompletedToday    bool `json:"completed_today"`
+	CompletedThisWeek bool `json:"completed_this_week"`
+	CompletedInSeason bool `json:"completed_in_season"`
+}
+
+// GetTasks 获取某赛季的任务，可按 type 过滤，附带完成状态
 func GetTasks(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		seasonID, _ := strconv.Atoi(c.Param("id"))
 		taskType := c.Query("type")
+
+		// 取赛季信息（用于判断赛季任务完成状态）
+		var season model.Season
+		if err := db.First(&season, seasonID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "season not found"})
+			return
+		}
 
 		query := db.Where("season_id = ?", seasonID)
 		if taskType != "" {
@@ -27,6 +42,7 @@ func GetTasks(db *gorm.DB) gin.HandlerFunc {
 
 		now := time.Now()
 		todayStr := now.Format("2006-01-02")
+
 		// 本周一
 		weekday := int(now.Weekday())
 		if weekday == 0 {
@@ -34,31 +50,28 @@ func GetTasks(db *gorm.DB) gin.HandlerFunc {
 		}
 		weekStart := now.AddDate(0, 0, -(weekday - 1)).Format("2006-01-02")
 
-		type TaskWithStatus struct {
-			model.Task
-			CompletedToday    bool `json:"completed_today"`
-			CompletedThisWeek bool `json:"completed_this_week"`
-		}
-
 		result := make([]TaskWithStatus, len(tasks))
 		for i, t := range tasks {
-			var count int64
-			// 今日完成
+			var todayCount, weekCount, seasonCount int64
+
 			db.Model(&model.TaskLog{}).
 				Where("task_id = ? AND date(completed_at) = ?", t.ID, todayStr).
-				Count(&count)
-			completedToday := count > 0
+				Count(&todayCount)
 
-			// 本周完成
-			var weekCount int64
 			db.Model(&model.TaskLog{}).
 				Where("task_id = ? AND date(completed_at) >= ?", t.ID, weekStart).
 				Count(&weekCount)
 
+			// 赛季任务：从赛季开始日期起算
+			db.Model(&model.TaskLog{}).
+				Where("task_id = ? AND date(completed_at) >= ?", t.ID, season.StartDate).
+				Count(&seasonCount)
+
 			result[i] = TaskWithStatus{
 				Task:              t,
-				CompletedToday:    completedToday,
+				CompletedToday:    todayCount > 0,
 				CompletedThisWeek: weekCount > 0,
+				CompletedInSeason: seasonCount > 0,
 			}
 		}
 
