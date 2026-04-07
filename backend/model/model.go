@@ -18,6 +18,7 @@ type Task struct {
 	Description string  `json:"description"`
 	Category    string  `json:"category"`  // health / work / life / mood
 	Type        string  `json:"type"`      // daily / weekly / season
+	Timing      string  `json:"timing"`    // morning / evening / both / out / anytime
 	Difficulty  string  `json:"difficulty"` // easy / normal / hard
 	ExpReward   float64 `json:"exp_reward"`
 	SortOrder   int     `json:"sort_order"`
@@ -32,20 +33,20 @@ type TaskLog struct {
 
 type UserStats struct {
 	ID             uint    `json:"id" gorm:"primaryKey"`
-	TotalExp       float64 `json:"total_exp"`     // 累计经验，只增不减，用于等级
-	SpendableExp   float64 `json:"spendable_exp"` // 可消费积分，兑换奖品后扣除
+	TotalExp       float64 `json:"total_exp"`
+	SpendableExp   float64 `json:"spendable_exp"`
 	Level          int     `json:"level"`
 	CurrentStreak  int     `json:"current_streak"`
 	LongestStreak  int     `json:"longest_streak"`
-	LastActiveDate string  `json:"last_active_date"` // YYYY-MM-DD
+	LastActiveDate string  `json:"last_active_date"`
 }
 
 type Prize struct {
 	ID          uint       `json:"id" gorm:"primaryKey"`
 	Name        string     `json:"name"`
 	Description string     `json:"description"`
-	Category    string     `json:"category"` // camera / watch / phone / other
-	Cost        float64    `json:"cost"`     // 积分成本 = 商品价格(元)
+	Category    string     `json:"category"`
+	Cost        float64    `json:"cost"`
 	Redeemed    bool       `json:"redeemed"`
 	RedeemedAt  *time.Time `json:"redeemed_at"`
 }

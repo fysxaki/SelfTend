@@ -1,6 +1,7 @@
 export type TaskCategory = 'health' | 'work' | 'life' | 'mood'
 export type TaskType = 'daily' | 'weekly' | 'season'
 export type TaskDifficulty = 'easy' | 'normal' | 'hard'
+export type TaskTiming = 'morning' | 'evening' | 'both' | 'out' | 'anytime'
 export type PrizeCategory = 'camera' | 'watch' | 'phone' | 'other'
 
 export interface Season {
@@ -19,8 +20,9 @@ export interface Task {
   description: string
   category: TaskCategory
   type: TaskType
+  timing: TaskTiming
   difficulty: TaskDifficulty
-  exp_reward: number   // float，支持 0.5、1.5 等
+  exp_reward: number
   sort_order: number
   completed_today?: boolean
   completed_this_week?: boolean
@@ -35,8 +37,8 @@ export interface TaskLog {
 
 export interface UserStats {
   id: number
-  total_exp: number     // 累计经验，只增不减，用于等级
-  spendable_exp: number // 可消费积分，兑换后扣除
+  total_exp: number
+  spendable_exp: number
   level: number
   current_streak: number
   longest_streak: number

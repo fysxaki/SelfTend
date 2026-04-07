@@ -1,21 +1,43 @@
 import axios from 'axios'
 import type { Prize, Season, Task, TaskLog, UserStats } from '@/types'
 
-const http = axios.create({
+export const http = axios.create({
   baseURL: '/api',
   timeout: 10000,
 })
 
+// 请求拦截：自动带上访问码
+http.interceptors.request.use((config) => {
+  const code = localStorage.getItem('selftend_code')
+  if (code) {
+    config.headers['X-Access-Code'] = code
+  }
+  return config
+})
+
+// 响应拦截：401 跳转登录
 http.interceptors.response.use(
   (res) => res.data,
-  (err) => Promise.reject(err),
+  (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('selftend_code')
+      window.location.href = '/login'
+    }
+    return Promise.reject(err)
+  },
 )
+
+// Auth
+export const login = (code: string) =>
+  axios.post<{ ok: boolean }, { ok: boolean }>('/api/auth/login', { code })
 
 // Season
 export const getSeason = (id: number) => http.get<Season, Season>(`/seasons/${id}`)
 export const getSeasons = () => http.get<Season[], Season[]>('/seasons')
 export const createSeason = (data: Omit<Season, 'id' | 'created_at'>) =>
   http.post<Season, Season>('/seasons', data)
+export const updateSeason = (id: number, data: Partial<Season>) =>
+  http.put<Season, Season>(`/seasons/${id}`, data)
 
 // Tasks
 export const getTasks = (seasonId: number, type?: string) =>
@@ -36,10 +58,6 @@ export const getTaskLogs = (taskId: number) =>
 
 // UserStats
 export const getUserStats = () => http.get<UserStats, UserStats>('/stats')
-
-// Season
-export const updateSeason = (id: number, data: Partial<Season>) =>
-  http.put<Season, Season>(`/seasons/${id}`, data)
 
 // Prizes
 export const getPrizes = () => http.get<Prize[], Prize[]>('/prizes')

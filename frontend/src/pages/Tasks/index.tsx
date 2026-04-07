@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react'
 import { createTask, deleteTask, getTasks, updateTask } from '@/api'
 import { useAppStore } from '@/stores/useAppStore'
 import type { Task, TaskCategory, TaskDifficulty, TaskType } from '@/types'
-import { CATEGORY_CONFIG, DIFFICULTY_CONFIG } from '@/utils/task'
+import { CATEGORY_CONFIG, DIFFICULTY_CONFIG, TIMING_CONFIG, TIMING_OPTIONS } from '@/utils/task'
 
-const typeOptions = [
+const TYPE_OPTIONS = [
   { label: '每日任务', value: 'daily' },
   { label: '每周任务', value: 'weekly' },
   { label: '赛季任务', value: 'season' },
@@ -33,7 +33,7 @@ export default function Tasks() {
   const openCreate = () => {
     setEditing(null)
     form.resetFields()
-    form.setFieldsValue({ type: 'daily', category: 'health', difficulty: 'easy', exp_reward: 1 })
+    form.setFieldsValue({ type: 'daily', category: 'health', timing: 'anytime', difficulty: 'easy', exp_reward: 1 })
     setModalOpen(true)
   }
 
@@ -64,19 +64,32 @@ export default function Tasks() {
 
   const columns = [
     {
-      title: '任务',
+      title: '任务名称',
       dataIndex: 'title',
-      render: (title: string, record: Task) => (
-        <div>
-          <div style={{ fontWeight: 500, color: '#1e1826' }}>{title}</div>
-          {record.description && <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>{record.description}</div>}
-        </div>
-      ),
+      width: 160,
+      render: (title: string, record: Task) => {
+        const timing = record.timing ? TIMING_CONFIG[record.timing as keyof typeof TIMING_CONFIG] : null
+        return (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 500, color: '#1e1826' }}>{title}</span>
+              {timing && (
+                <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 20, background: '#f5f3ff', color: '#7c3aed' }}>
+                  {timing.icon} {timing.label}
+                </span>
+              )}
+            </div>
+            {record.description && (
+              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{record.description}</div>
+            )}
+          </div>
+        )
+      },
     },
     {
       title: '类型',
       dataIndex: 'type',
-      width: 90,
+      width: 80,
       render: (type: TaskType) => {
         const map = { daily: '每日', weekly: '每周', season: '赛季' }
         const colorMap = { daily: 'blue', weekly: 'purple', season: 'gold' }
@@ -86,11 +99,11 @@ export default function Tasks() {
     {
       title: '分类',
       dataIndex: 'category',
-      width: 100,
+      width: 90,
       render: (cat: TaskCategory) => {
         const c = CATEGORY_CONFIG[cat]
         return (
-          <span style={{ color: c.color, background: c.bg, padding: '2px 8px', borderRadius: 20, fontSize: 12, fontWeight: 500 }}>
+          <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 20, color: c.color, background: c.bg, fontWeight: 500 }}>
             {c.icon} {c.label}
           </span>
         )
@@ -99,7 +112,7 @@ export default function Tasks() {
     {
       title: '难度',
       dataIndex: 'difficulty',
-      width: 80,
+      width: 70,
       render: (diff: TaskDifficulty) => {
         const d = DIFFICULTY_CONFIG[diff]
         return <span style={{ color: d.color, fontWeight: 500, fontSize: 13 }}>{d.label}</span>
@@ -108,14 +121,16 @@ export default function Tasks() {
     {
       title: '积分',
       dataIndex: 'exp_reward',
-      width: 80,
+      width: 70,
       render: (exp: number) => (
-        <span style={{ color: '#7c3aed', fontWeight: 600 }}>+{exp % 1 === 0 ? exp : exp.toFixed(1)}</span>
+        <span style={{ color: '#7c3aed', fontWeight: 600 }}>
+          +{exp % 1 === 0 ? exp : exp.toFixed(1)}
+        </span>
       ),
     },
     {
       title: '',
-      width: 80,
+      width: 72,
       render: (_: unknown, record: Task) => (
         <div style={{ display: 'flex', gap: 4 }}>
           <Button type="text" icon={<EditOutlined />} size="small" onClick={() => openEdit(record)} style={{ color: '#7c3aed' }} />
@@ -134,12 +149,13 @@ export default function Tasks() {
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 820, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#1e1826' }}>任务管理</h1>
+    <div style={{ padding: '16px 16px 32px', maxWidth: 820, margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <h1 style={{ fontSize: 18, fontWeight: 700, color: '#1e1826' }}>任务管理</h1>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建任务</Button>
       </div>
 
+      {/* 横向可滚动表格 */}
       <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #e4deff', overflow: 'hidden' }}>
         <Table
           dataSource={tasks}
@@ -147,6 +163,8 @@ export default function Tasks() {
           rowKey="id"
           loading={loading}
           pagination={false}
+          scroll={{ x: 560 }}
+          size="middle"
         />
       </div>
 
@@ -160,28 +178,29 @@ export default function Tasks() {
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="title" label="任务名称" rules={[{ required: true }]}>
-            <Input placeholder="例：30分钟有氧运动" />
+            <Input placeholder="例：洗脸" />
           </Form.Item>
-          <Form.Item name="description" label="描述（可选）">
-            <Input placeholder="详细说明" />
+          <Form.Item name="description" label="补充说明（可选）">
+            <Input placeholder="例：早晚各一次" />
           </Form.Item>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <Form.Item name="type" label="类型" rules={[{ required: true }]}>
-              <Select options={typeOptions} />
+              <Select options={TYPE_OPTIONS} />
             </Form.Item>
-            <Form.Item name="category" label="分类" rules={[{ required: true }]}>
-              <Select options={Object.entries(CATEGORY_CONFIG).map(([v, c]) => ({
-                value: v, label: `${c.icon} ${c.label}`,
-              }))} />
+            <Form.Item name="timing" label="执行时机" rules={[{ required: true }]}>
+              <Select options={TIMING_OPTIONS} />
             </Form.Item>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Form.Item name="difficulty" label="难度" rules={[{ required: true }]}>
-              <Select options={Object.entries(DIFFICULTY_CONFIG).map(([v, d]) => ({
-                value: v, label: d.label,
-              }))} />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            <Form.Item name="category" label="分类" rules={[{ required: true }]}>
+              <Select options={Object.entries(CATEGORY_CONFIG).map(([v, c]) => ({ value: v, label: `${c.icon} ${c.label}` }))} />
             </Form.Item>
-            <Form.Item name="exp_reward" label="积分奖励" rules={[{ required: true }]}>
+            <Form.Item name="difficulty" label="难度" rules={[{ required: true }]}>
+              <Select options={Object.entries(DIFFICULTY_CONFIG).map(([v, d]) => ({ value: v, label: d.label }))} />
+            </Form.Item>
+            <Form.Item name="exp_reward" label="积分" rules={[{ required: true }]}>
               <InputNumber min={0.5} max={999} step={0.5} style={{ width: '100%' }} />
             </Form.Item>
           </div>

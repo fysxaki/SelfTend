@@ -23,40 +23,56 @@ func CompleteTask(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-
 		var task model.Task
 		if err := db.First(&task, req.TaskID).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
 			return
 		}
-
-		log := model.TaskLog{
-			TaskID:      req.TaskID,
-			CompletedAt: time.Now(),
-			Note:        req.Note,
-		}
+		log := model.TaskLog{TaskID: req.TaskID, CompletedAt: time.Now(), Note: req.Note}
 		db.Create(&log)
 		updateUserStats(db, task.ExpReward)
-
 		c.JSON(http.StatusOK, log)
 	}
 }
 
-// UndoTask 取消今天的完成记录并退还 EXP
+// UndoTask 取消完成记录并退还积分
+// 每日任务：只能撤销今天的记录
+// 每周任务：可撤销本周内的记录
 func UndoTask(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		taskID, _ := strconv.Atoi(c.Param("taskId"))
-		today := time.Now().Format("2006-01-02")
 
-		var log model.TaskLog
-		if err := db.Where("task_id = ? AND date(completed_at) = ?", taskID, today).
-			Order("completed_at desc").First(&log).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "no completion found today"})
+		var task model.Task
+		if err := db.First(&task, taskID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
 			return
 		}
 
-		var task model.Task
-		db.First(&task, taskID)
+		now := time.Now()
+		var log model.TaskLog
+		var queryErr error
+
+		switch task.Type {
+		case "weekly":
+			// 本周一到今天
+			weekday := int(now.Weekday())
+			if weekday == 0 {
+				weekday = 7
+			}
+			weekStart := now.AddDate(0, 0, -(weekday - 1)).Format("2006-01-02")
+			queryErr = db.Where("task_id = ? AND date(completed_at) >= ?", taskID, weekStart).
+				Order("completed_at desc").First(&log).Error
+		default:
+			// daily / season：只限今天
+			today := now.Format("2006-01-02")
+			queryErr = db.Where("task_id = ? AND date(completed_at) = ?", taskID, today).
+				Order("completed_at desc").First(&log).Error
+		}
+
+		if queryErr != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "no completion record found"})
+			return
+		}
 
 		db.Delete(&log)
 
@@ -90,10 +106,8 @@ func GetTaskLogs(db *gorm.DB) gin.HandlerFunc {
 func updateUserStats(db *gorm.DB, expGained float64) {
 	var stats model.UserStats
 	db.First(&stats)
-
 	stats.TotalExp += expGained
 	stats.SpendableExp += expGained
-
 	today := time.Now().Format("2006-01-02")
 	if stats.LastActiveDate != today {
 		yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
@@ -107,7 +121,6 @@ func updateUserStats(db *gorm.DB, expGained float64) {
 		}
 		stats.LastActiveDate = today
 	}
-
 	stats.Level = calcLevel(stats.TotalExp)
 	db.Save(&stats)
 }

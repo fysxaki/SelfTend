@@ -5,8 +5,17 @@ import {
   TrophyOutlined,
 } from '@ant-design/icons'
 import { ConfigProvider, Layout, theme } from 'antd'
-import { NavLink, Route, BrowserRouter as Router, Routes, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import {
+  NavLink,
+  Navigate,
+  Route,
+  BrowserRouter as Router,
+  Routes,
+  useLocation,
+} from 'react-router-dom'
 import Dashboard from '@/pages/Dashboard'
+import Login from '@/pages/Login'
 import Rewards from '@/pages/Rewards'
 import SeasonPage from '@/pages/Season'
 import Tasks from '@/pages/Tasks'
@@ -20,11 +29,18 @@ const NAV_ITEMS = [
   { key: '/season',  icon: <TrophyOutlined />,   label: '赛季',  path: '/season' },
 ]
 
+// 路由守卫：未登录则跳转 /login
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const code = localStorage.getItem('selftend_code')
+  if (!code) return <Navigate to="/login" replace />
+  return <>{children}</>
+}
+
 function AppLayout() {
   const location = useLocation()
 
   return (
-    <Layout className="min-h-screen">
+    <Layout style={{ minHeight: '100svh' }}>
       <Sider
         width={68}
         style={{
@@ -37,15 +53,12 @@ function AppLayout() {
           zIndex: 100,
         }}
       >
-        {/* Logo */}
         <div
           className="flex items-center justify-center h-14"
           style={{ borderBottom: '1px solid #3d2a8a' }}
         >
           <span style={{ color: '#e0d4ff', fontSize: 22 }}>◈</span>
         </div>
-
-        {/* Nav */}
         <div className="flex flex-col items-center gap-1 pt-3">
           {NAV_ITEMS.map((item) => {
             const active = location.pathname === item.key
@@ -92,7 +105,17 @@ function AppLayout() {
   )
 }
 
+// 开发环境跳过登录（未设置环境变量时后端返回 ok）
+function useAuthCheck() {
+  const [checked, setChecked] = useState(false)
+  useEffect(() => { setChecked(true) }, [])
+  return checked
+}
+
 export default function App() {
+  const ready = useAuthCheck()
+  if (!ready) return null
+
   return (
     <ConfigProvider
       theme={{
@@ -107,19 +130,23 @@ export default function App() {
           fontFamily: 'system-ui, -apple-system, sans-serif',
         },
         components: {
-          Table: {
-            headerBg: '#f5f3ff',
-            rowHoverBg: '#faf8ff',
-          },
-          Modal: {
-            contentBg: '#ffffff',
-            headerBg: '#ffffff',
-          },
+          Table: { headerBg: '#f5f3ff', rowHoverBg: '#faf8ff' },
+          Modal: { contentBg: '#ffffff', headerBg: '#ffffff' },
         },
       }}
     >
       <Router>
-        <AppLayout />
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/*"
+            element={
+              <RequireAuth>
+                <AppLayout />
+              </RequireAuth>
+            }
+          />
+        </Routes>
       </Router>
     </ConfigProvider>
   )

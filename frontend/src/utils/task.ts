@@ -1,4 +1,4 @@
-import type { TaskCategory, TaskDifficulty } from '@/types'
+import type { TaskCategory, TaskDifficulty, TaskTiming } from '@/types'
 
 export const CATEGORY_CONFIG: Record<TaskCategory, { label: string; color: string; bg: string; icon: string }> = {
   health: { label: '健康', color: '#16a34a', bg: '#dcfce7', icon: '🏃' },
@@ -13,14 +13,25 @@ export const DIFFICULTY_CONFIG: Record<TaskDifficulty, { label: string; color: s
   hard:   { label: '困难', color: '#dc2626', bg: '#fee2e2' },
 }
 
-// 难度规则：≤1 简单，>1 且 <10 普通，≥10 困难
+export const TIMING_CONFIG: Record<TaskTiming, { label: string; icon: string }> = {
+  morning: { label: '早上',  icon: '🌅' },
+  evening: { label: '晚上',  icon: '🌙' },
+  both:    { label: '早晚',  icon: '☀️' },
+  out:     { label: '出门前', icon: '🚪' },
+  anytime: { label: '随时',  icon: '⏰' },
+}
+
+export const TIMING_OPTIONS = Object.entries(TIMING_CONFIG).map(([v, c]) => ({
+  value: v,
+  label: `${c.icon} ${c.label}`,
+}))
+
 export function getDifficulty(exp: number): TaskDifficulty {
   if (exp <= 1) return 'easy'
   if (exp < 10) return 'normal'
   return 'hard'
 }
 
-// 根据累计经验计算等级（前端展示用，与后端逻辑一致）
 export function calcLevel(exp: number): { level: number; currentExp: number; nextLevelExp: number } {
   let level = 1
   let required = 100
@@ -33,7 +44,6 @@ export function calcLevel(exp: number): { level: number; currentExp: number; nex
   return { level, currentExp: remaining, nextLevelExp: required }
 }
 
-// 格式化积分显示，去掉多余小数
 export function formatExp(exp: number): string {
   return exp % 1 === 0 ? String(exp) : exp.toFixed(1)
 }
