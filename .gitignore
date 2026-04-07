@@ -1,0 +1,13 @@
+# 数据库（绝对不能上传）
+backend/data.db
+
+# Go 编译产物
+backend/selftend
+
+# 前端构建产物
+frontend/dist
+frontend/node_modules
+
+# 系统文件
+.DS_Store
+*.log

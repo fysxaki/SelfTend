@@ -1,0 +1,15 @@
+[Unit]
+Description=SelfTend Backend Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/selftend/backend
+ExecStart=/opt/selftend/backend/selftend
+Restart=always
+RestartSec=5
+Environment=GIN_MODE=release
+
+[Install]
+WantedBy=multi-user.target
