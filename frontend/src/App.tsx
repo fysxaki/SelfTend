@@ -4,8 +4,8 @@ import {
   ScheduleOutlined,
   TrophyOutlined,
 } from '@ant-design/icons'
-import { ConfigProvider, Layout, theme } from 'antd'
-import { useEffect, useState } from 'react'
+import { ConfigProvider, Spin, Layout, theme } from 'antd'
+import { useEffect } from 'react'
 import {
   NavLink,
   Navigate,
@@ -19,6 +19,7 @@ import Login from '@/pages/Login'
 import Rewards from '@/pages/Rewards'
 import SeasonPage from '@/pages/Season'
 import Tasks from '@/pages/Tasks'
+import { useAppStore } from '@/stores/useAppStore'
 
 const { Sider, Content } = Layout
 
@@ -29,7 +30,6 @@ const NAV_ITEMS = [
   { key: '/season',  icon: <TrophyOutlined />,   label: '赛季',  path: '/season' },
 ]
 
-// 路由守卫：未登录则跳转 /login
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const code = localStorage.getItem('selftend_code')
   if (!code) return <Navigate to="/login" replace />
@@ -38,6 +38,18 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 function AppLayout() {
   const location = useLocation()
+  const { init, initialized } = useAppStore()
+
+  // 启动时加载赛季和用户数据，消除白屏
+  useEffect(() => { init() }, [])
+
+  if (!initialized) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100svh', background: '#f0eeff' }}>
+        <Spin size="large" />
+      </div>
+    )
+  }
 
   return (
     <Layout style={{ minHeight: '100svh' }}>
@@ -47,16 +59,12 @@ function AppLayout() {
           background: '#2e1f72',
           borderRight: '1px solid #3d2a8a',
           position: 'fixed',
-          left: 0,
-          top: 0,
+          left: 0, top: 0,
           height: '100vh',
           zIndex: 100,
         }}
       >
-        <div
-          className="flex items-center justify-center h-14"
-          style={{ borderBottom: '1px solid #3d2a8a' }}
-        >
+        <div className="flex items-center justify-center h-14" style={{ borderBottom: '1px solid #3d2a8a' }}>
           <span style={{ color: '#e0d4ff', fontSize: 22 }}>◈</span>
         </div>
         <div className="flex flex-col items-center gap-1 pt-3">
@@ -67,18 +75,11 @@ function AppLayout() {
                 key={item.key}
                 to={item.path}
                 style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 4,
-                  width: 52,
-                  paddingTop: 10,
-                  paddingBottom: 10,
-                  borderRadius: 10,
-                  fontSize: 11,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  gap: 4, width: 52, paddingTop: 10, paddingBottom: 10,
+                  borderRadius: 10, fontSize: 11,
                   fontWeight: active ? 600 : 400,
-                  textDecoration: 'none',
-                  transition: 'all 0.15s',
+                  textDecoration: 'none', transition: 'all 0.15s',
                   background: active ? 'rgba(255,255,255,0.15)' : 'transparent',
                   color: active ? '#ffffff' : '#c4b5fd',
                 }}
@@ -105,17 +106,7 @@ function AppLayout() {
   )
 }
 
-// 开发环境跳过登录（未设置环境变量时后端返回 ok）
-function useAuthCheck() {
-  const [checked, setChecked] = useState(false)
-  useEffect(() => { setChecked(true) }, [])
-  return checked
-}
-
 export default function App() {
-  const ready = useAuthCheck()
-  if (!ready) return null
-
   return (
     <ConfigProvider
       theme={{

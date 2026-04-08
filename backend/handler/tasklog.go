@@ -12,8 +12,9 @@ import (
 )
 
 type CompleteTaskReq struct {
-	TaskID uint   `json:"task_id"`
-	Note   string `json:"note"`
+	TaskID      uint    `json:"task_id"`
+	Note        string  `json:"note"`
+	ExpOverride float64 `json:"exp_override"` // >0 时覆盖任务默认积分（用于早晚部分完成）
 }
 
 func CompleteTask(db *gorm.DB) gin.HandlerFunc {
@@ -28,9 +29,15 @@ func CompleteTask(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
 			return
 		}
+
+		exp := task.ExpReward
+		if req.ExpOverride > 0 {
+			exp = req.ExpOverride
+		}
+
 		log := model.TaskLog{TaskID: req.TaskID, CompletedAt: time.Now(), Note: req.Note}
 		db.Create(&log)
-		updateUserStats(db, task.ExpReward)
+		updateUserStats(db, exp)
 		c.JSON(http.StatusOK, log)
 	}
 }

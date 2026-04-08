@@ -33,8 +33,8 @@ export default function Dashboard() {
     loadTasks().finally(() => setLoading(false))
   }, [currentSeason])
 
-  const handleComplete = async (task: Task) => {
-    await completeTask(task.id)
+  const handleComplete = async (task: Task, expOverride?: number) => {
+    await completeTask(task.id, undefined, expOverride)
     await loadTasks()
   }
 
