@@ -29,6 +29,7 @@ type TaskLog struct {
 	TaskID      uint      `json:"task_id"`
 	CompletedAt time.Time `json:"completed_at"`
 	Note        string    `json:"note"`
+	ExpAwarded  float64   `json:"exp_awarded"` // 实际发放的积分（早晚部分完成时可能与 task.ExpReward 不同）
 }
 
 type UserStats struct {

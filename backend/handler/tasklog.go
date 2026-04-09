@@ -35,7 +35,12 @@ func CompleteTask(db *gorm.DB) gin.HandlerFunc {
 			exp = req.ExpOverride
 		}
 
-		log := model.TaskLog{TaskID: req.TaskID, CompletedAt: time.Now(), Note: req.Note}
+		log := model.TaskLog{
+			TaskID:      req.TaskID,
+			CompletedAt: time.Now(),
+			Note:        req.Note,
+			ExpAwarded:  exp, // 记录实际发放积分
+		}
 		db.Create(&log)
 		updateUserStats(db, exp)
 		c.JSON(http.StatusOK, log)
@@ -75,12 +80,18 @@ func UndoTask(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		// 退还实际发放的积分（兼容旧记录：ExpAwarded=0 时退 task.ExpReward）
+		refund := log.ExpAwarded
+		if refund == 0 {
+			refund = task.ExpReward
+		}
+
 		db.Delete(&log)
 
 		var stats model.UserStats
 		db.First(&stats)
-		stats.TotalExp -= task.ExpReward
-		stats.SpendableExp -= task.ExpReward
+		stats.TotalExp -= refund
+		stats.SpendableExp -= refund
 		if stats.TotalExp < 0 {
 			stats.TotalExp = 0
 		}
