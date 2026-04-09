@@ -14,7 +14,7 @@ import (
 type CompleteTaskReq struct {
 	TaskID      uint    `json:"task_id"`
 	Note        string  `json:"note"`
-	ExpOverride float64 `json:"exp_override"` // >0 时覆盖任务默认积分（用于早晚部分完成）
+	ExpOverride float64 `json:"exp_override"`
 }
 
 func CompleteTask(db *gorm.DB) gin.HandlerFunc {
@@ -43,8 +43,8 @@ func CompleteTask(db *gorm.DB) gin.HandlerFunc {
 }
 
 // UndoTask 取消完成记录并退还积分
-// 每日任务：只能撤销今天的记录
-// 每周任务：可撤销本周内的记录
+// 每日任务：只能撤销今天（CST）的记录
+// 每周任务：可撤销本周（CST）内的记录
 func UndoTask(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		taskID, _ := strconv.Atoi(c.Param("taskId"))
@@ -55,24 +55,18 @@ func UndoTask(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		now := time.Now()
 		var log model.TaskLog
 		var queryErr error
 
 		switch task.Type {
 		case "weekly":
-			// 本周一到今天
-			weekday := int(now.Weekday())
-			if weekday == 0 {
-				weekday = 7
-			}
-			weekStart := now.AddDate(0, 0, -(weekday - 1)).Format("2006-01-02")
-			queryErr = db.Where("task_id = ? AND date(completed_at) >= ?", taskID, weekStart).
+			weekStart := weekStartUTC()
+			queryErr = db.Where("task_id = ? AND completed_at >= ?", taskID, weekStart).
 				Order("completed_at desc").First(&log).Error
 		default:
-			// daily / season：只限今天
-			today := now.Format("2006-01-02")
-			queryErr = db.Where("task_id = ? AND date(completed_at) = ?", taskID, today).
+			todayStart, todayEnd := todayRangeUTC()
+			queryErr = db.Where("task_id = ? AND completed_at >= ? AND completed_at < ?",
+				taskID, todayStart, todayEnd).
 				Order("completed_at desc").First(&log).Error
 		}
 
@@ -83,7 +77,6 @@ func UndoTask(db *gorm.DB) gin.HandlerFunc {
 
 		db.Delete(&log)
 
-		// 退还积分
 		var stats model.UserStats
 		db.First(&stats)
 		stats.TotalExp -= task.ExpReward
@@ -115,10 +108,13 @@ func updateUserStats(db *gorm.DB, expGained float64) {
 	db.First(&stats)
 	stats.TotalExp += expGained
 	stats.SpendableExp += expGained
-	today := time.Now().Format("2006-01-02")
-	if stats.LastActiveDate != today {
-		yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
-		if stats.LastActiveDate == yesterday {
+
+	// 连续打卡：以 CST 日期字符串判断
+	todayCST := time.Now().In(cst).Format("2006-01-02")
+	yesterdayCST := time.Now().In(cst).Add(-24 * time.Hour).Format("2006-01-02")
+
+	if stats.LastActiveDate != todayCST {
+		if stats.LastActiveDate == yesterdayCST {
 			stats.CurrentStreak++
 		} else {
 			stats.CurrentStreak = 1
@@ -126,8 +122,9 @@ func updateUserStats(db *gorm.DB, expGained float64) {
 		if stats.CurrentStreak > stats.LongestStreak {
 			stats.LongestStreak = stats.CurrentStreak
 		}
-		stats.LastActiveDate = today
+		stats.LastActiveDate = todayCST
 	}
+
 	stats.Level = calcLevel(stats.TotalExp)
 	db.Save(&stats)
 }
