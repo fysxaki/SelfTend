@@ -58,11 +58,6 @@ export default function Dashboard() {
   const seasonDone = seasonTasks.filter((t) => t.completed_in_season).length
   const daysLeft   = dayjs(currentSeason.end_date).diff(dayjs(), 'day')
 
-  // 赛季任务用 completed_in_season 判断完成状态，注入到 card 里
-  const seasonTasksNormalized = seasonTasks.map((t) => ({
-    ...t,
-    completed_today: t.completed_in_season, // 复用 card 的完成逻辑
-  }))
 
   return (
     <div className="page-container" style={{ padding: 20, maxWidth: 820, margin: '0 auto' }}>
@@ -163,7 +158,7 @@ export default function Dashboard() {
               title="赛季任务"
               badge={`${seasonDone}/${seasonTasks.length}`}
               hint="赛季内完成即可"
-              tasks={seasonTasksNormalized}
+              tasks={seasonTasks}
               empty=""
               onComplete={handleComplete}
               onUndo={handleUndo}
@@ -182,7 +177,7 @@ interface SectionProps {
   hint: string
   tasks: Task[]
   empty: string
-  onComplete: (t: Task) => Promise<void>
+  onComplete: (t: Task, expOverride?: number) => Promise<void>
   onUndo: (t: Task) => Promise<void>
 }
 

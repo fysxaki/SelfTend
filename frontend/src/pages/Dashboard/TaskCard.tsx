@@ -14,7 +14,10 @@ interface Props {
 export default function TaskCard({ task, onComplete, onUndo }: Props) {
   const [loading, setLoading] = useState(false)
   const [undoing, setUndoing] = useState(false)
-  const isCompleted = task.completed_today || task.completed_this_week || task.completed_in_season
+  const isCompleted =
+    task.type === 'weekly' ? !!task.completed_this_week :
+    task.type === 'season' ? !!task.completed_in_season :
+    !!task.completed_today
   const category = CATEGORY_CONFIG[task.category]
   const difficulty = DIFFICULTY_CONFIG[task.difficulty]
   const timing = task.timing ? TIMING_CONFIG[task.timing as keyof typeof TIMING_CONFIG] : null
