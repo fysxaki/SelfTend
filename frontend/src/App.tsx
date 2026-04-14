@@ -1,6 +1,8 @@
 import {
   AppstoreOutlined,
+  BarChartOutlined,
   GiftOutlined,
+  MoonOutlined,
   ScheduleOutlined,
   TrophyOutlined,
 } from '@ant-design/icons'
@@ -14,20 +16,24 @@ import {
   Routes,
   useLocation,
 } from 'react-router-dom'
+import AnalyticsPage from '@/pages/Analytics'
 import Dashboard from '@/pages/Dashboard'
 import Login from '@/pages/Login'
 import Rewards from '@/pages/Rewards'
 import SeasonPage from '@/pages/Season'
+import SleepPage from '@/pages/Sleep'
 import Tasks from '@/pages/Tasks'
 import { useAppStore } from '@/stores/useAppStore'
 
 const { Sider, Content } = Layout
 
 const NAV_ITEMS = [
-  { key: '/',        icon: <AppstoreOutlined />, label: '今日',  path: '/' },
-  { key: '/tasks',   icon: <ScheduleOutlined />, label: '任务',  path: '/tasks' },
-  { key: '/rewards', icon: <GiftOutlined />,     label: '奖励',  path: '/rewards' },
-  { key: '/season',  icon: <TrophyOutlined />,   label: '赛季',  path: '/season' },
+  { key: '/',          icon: <AppstoreOutlined />,  label: '今日',  path: '/' },
+  { key: '/tasks',     icon: <ScheduleOutlined />,  label: '任务',  path: '/tasks' },
+  { key: '/rewards',   icon: <GiftOutlined />,      label: '奖励',  path: '/rewards' },
+  { key: '/season',    icon: <TrophyOutlined />,    label: '赛季',  path: '/season' },
+  { key: '/sleep',     icon: <MoonOutlined />,      label: '睡眠',  path: '/sleep' },
+  { key: '/analytics', icon: <BarChartOutlined />,  label: '分析',  path: '/analytics' },
 ]
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -95,10 +101,12 @@ function AppLayout() {
       <Layout style={{ marginLeft: 68, background: '#f0eeff', minHeight: '100vh' }}>
         <Content>
           <Routes>
-            <Route path="/"        element={<Dashboard />} />
-            <Route path="/tasks"   element={<Tasks />} />
-            <Route path="/rewards" element={<Rewards />} />
-            <Route path="/season"  element={<SeasonPage />} />
+            <Route path="/"           element={<Dashboard />} />
+            <Route path="/tasks"      element={<Tasks />} />
+            <Route path="/rewards"    element={<Rewards />} />
+            <Route path="/season"     element={<SeasonPage />} />
+            <Route path="/sleep"      element={<SleepPage />} />
+            <Route path="/analytics"  element={<AnalyticsPage />} />
           </Routes>
         </Content>
       </Layout>

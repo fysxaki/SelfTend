@@ -55,3 +55,31 @@ export interface Prize {
   redeemed: boolean
   redeemed_at: string | null
 }
+
+export interface SleepLog {
+  id: number
+  date: string        // YYYY-MM-DD
+  sleep_time: string  // HH:MM
+  wake_time: string   // HH:MM
+  duration: number    // 小时
+  penalized: boolean
+  penalty_exp: number
+  created_at: string
+}
+
+export interface EnergyLog {
+  id: number
+  date: string        // YYYY-MM-DD
+  energy_level: number // 1-5
+  note: string
+  created_at: string
+}
+
+export interface AnalyticsItem {
+  date: string
+  sleep_time: string
+  duration: number
+  energy_level: number // 0 表示未记录
+  penalized: boolean
+  penalty_exp: number
+}

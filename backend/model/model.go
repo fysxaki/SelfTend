@@ -51,3 +51,24 @@ type Prize struct {
 	Redeemed    bool       `json:"redeemed"`
 	RedeemedAt  *time.Time `json:"redeemed_at"`
 }
+
+// SleepLog 睡眠记录
+type SleepLog struct {
+	ID         uint      `json:"id" gorm:"primaryKey"`
+	Date       string    `json:"date"`        // YYYY-MM-DD (CST)
+	SleepTime  string    `json:"sleep_time"`  // HH:MM (CST)，入睡时间
+	WakeTime   string    `json:"wake_time"`   // HH:MM (CST)，起床时间，默认 08:40
+	Duration   float64   `json:"duration"`    // 睡眠时长（小时）
+	Penalized  bool      `json:"penalized"`   // 是否触发惩罚
+	PenaltyExp float64   `json:"penalty_exp"` // 被扣除的积分
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// EnergyLog 每日能量记录
+type EnergyLog struct {
+	ID          uint      `json:"id" gorm:"primaryKey"`
+	Date        string    `json:"date"`         // YYYY-MM-DD (CST)
+	EnergyLevel int       `json:"energy_level"` // 1-5
+	Note        string    `json:"note"`
+	CreatedAt   time.Time `json:"created_at"`
+}

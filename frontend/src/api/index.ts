@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Prize, Season, Task, TaskLog, UserStats } from '@/types'
+import type { AnalyticsItem, EnergyLog, Prize, Season, SleepLog, Task, TaskLog, UserStats } from '@/types'
 
 export const http = axios.create({
   baseURL: '/api',
@@ -74,3 +74,25 @@ export const redeemPrize = (id: number) =>
   http.post<{ prize: Prize; stats: UserStats }, { prize: Prize; stats: UserStats }>(
     `/prizes/${id}/redeem`,
   )
+
+// SleepLogs
+export const createSleepLog = (data: { date?: string; sleep_time: string }) =>
+  http.post<SleepLog, SleepLog>('/sleep-logs', data)
+export const getSleepLogs = (params?: { start_date?: string; end_date?: string }) =>
+  http.get<SleepLog[], SleepLog[]>('/sleep-logs', { params })
+export const updateSleepLog = (id: number, data: { sleep_time: string }) =>
+  http.put<SleepLog, SleepLog>(`/sleep-logs/${id}`, data)
+export const deleteSleepLog = (id: number) => http.delete(`/sleep-logs/${id}`)
+
+// EnergyLogs
+export const createEnergyLog = (data: { date?: string; energy_level: number; note?: string }) =>
+  http.post<EnergyLog, EnergyLog>('/energy-logs', data)
+export const getEnergyLogs = (params?: { start_date?: string; end_date?: string }) =>
+  http.get<EnergyLog[], EnergyLog[]>('/energy-logs', { params })
+export const updateEnergyLog = (id: number, data: { energy_level: number; note?: string }) =>
+  http.put<EnergyLog, EnergyLog>(`/energy-logs/${id}`, data)
+export const deleteEnergyLog = (id: number) => http.delete(`/energy-logs/${id}`)
+
+// Analytics
+export const getAnalytics = (params?: { start_date?: string; end_date?: string }) =>
+  http.get<AnalyticsItem[], AnalyticsItem[]>('/analytics', { params })

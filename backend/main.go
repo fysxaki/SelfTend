@@ -24,6 +24,8 @@ func main() {
 		&model.TaskLog{},
 		&model.UserStats{},
 		&model.Prize{},
+		&model.SleepLog{},
+		&model.EnergyLog{},
 	)
 
 	// 仅初始化 UserStats（业务必须存在的系统记录）
@@ -63,6 +65,21 @@ func main() {
 		api.PUT("/prizes/:id", handler.UpdatePrize(db))
 		api.DELETE("/prizes/:id", handler.DeletePrize(db))
 		api.POST("/prizes/:id/redeem", handler.RedeemPrize(db))
+
+		// 睡眠记录
+		api.POST("/sleep-logs", handler.CreateSleepLog(db))
+		api.GET("/sleep-logs", handler.GetSleepLogs(db))
+		api.PUT("/sleep-logs/:id", handler.UpdateSleepLog(db))
+		api.DELETE("/sleep-logs/:id", handler.DeleteSleepLog(db))
+
+		// 能量记录
+		api.POST("/energy-logs", handler.CreateEnergyLog(db))
+		api.GET("/energy-logs", handler.GetEnergyLogs(db))
+		api.PUT("/energy-logs/:id", handler.UpdateEnergyLog(db))
+		api.DELETE("/energy-logs/:id", handler.DeleteEnergyLog(db))
+
+		// 数据分析（睡眠 + 能量聚合）
+		api.GET("/analytics", handler.GetAnalytics(db))
 	}
 
 	log.Println("Server running on :8080")
