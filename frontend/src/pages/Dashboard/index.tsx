@@ -1,10 +1,10 @@
-import { CheckCircleOutlined, FireOutlined, TrophyOutlined } from '@ant-design/icons'
-import { Progress, Spin } from 'antd'
+import { CheckCircleOutlined, EditOutlined, FireOutlined, ThunderboltOutlined, TrophyOutlined } from '@ant-design/icons'
+import { Progress, Spin, Tooltip, message } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
-import { completeTask, getTasks } from '@/api'
+import { completeTask, createEnergyLog, getEnergyLogs, getTasks, updateEnergyLog } from '@/api'
 import { useAppStore } from '@/stores/useAppStore'
-import type { Task } from '@/types'
+import type { EnergyLog, Task } from '@/types'
 import { calcLevel, formatExp } from '@/utils/task'
 import TaskCard from './TaskCard'
 
@@ -14,6 +14,8 @@ export default function Dashboard() {
   const [weeklyTasks, setWeeklyTasks] = useState<Task[]>([])
   const [seasonTasks, setSeasonTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  const [todayEnergy, setTodayEnergy] = useState<EnergyLog | null>(null)
+  const [energySaving, setEnergySaving] = useState(false)
 
   const loadTasks = async () => {
     if (!currentSeason) return
@@ -28,9 +30,34 @@ export default function Dashboard() {
     setSeasonTasks(season)
   }
 
+  const loadEnergy = async () => {
+    const today = dayjs().format('YYYY-MM-DD')
+    const logs = await getEnergyLogs({ start_date: today, end_date: today })
+    setTodayEnergy(logs?.[0] ?? null)
+  }
+
+  const handleEnergySelect = async (level: number) => {
+    if (energySaving) return
+    setEnergySaving(true)
+    try {
+      if (todayEnergy) {
+        const updated = await updateEnergyLog(todayEnergy.id, { energy_level: level })
+        setTodayEnergy(updated)
+      } else {
+        const created = await createEnergyLog({ energy_level: level })
+        setTodayEnergy(created)
+      }
+      message.success(`能量值已记录：${level} / 5`)
+    } catch {
+      message.error('记录失败，请重试')
+    } finally {
+      setEnergySaving(false)
+    }
+  }
+
   useEffect(() => {
     setLoading(true)
-    loadTasks().finally(() => setLoading(false))
+    Promise.all([loadTasks(), loadEnergy()]).finally(() => setLoading(false))
   }, [currentSeason])
 
   const handleComplete = async (task: Task, expOverride?: number) => {
@@ -126,6 +153,13 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* 今日能量记录 */}
+      <EnergyBar
+        value={todayEnergy?.energy_level ?? null}
+        saving={energySaving}
+        onSelect={handleEnergySelect}
+      />
+
       {loading ? (
         <div style={{ textAlign: 'center', paddingTop: 48 }}><Spin size="large" /></div>
       ) : (
@@ -165,6 +199,90 @@ export default function Dashboard() {
             />
           )}
         </>
+      )}
+    </div>
+  )
+}
+
+// ── 今日能量快捷记录条 ────────────────────────────────────
+const ENERGY_LEVELS = [
+  { value: 1, emoji: '😴', label: '很差' },
+  { value: 2, emoji: '😞', label: '较差' },
+  { value: 3, emoji: '😐', label: '一般' },
+  { value: 4, emoji: '😊', label: '不错' },
+  { value: 5, emoji: '⚡', label: '满血' },
+]
+
+function EnergyBar({
+  value,
+  saving,
+  onSelect,
+}: {
+  value: number | null
+  saving: boolean
+  onSelect: (v: number) => void
+}) {
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: '1.5px solid #e4deff',
+        borderRadius: 14,
+        padding: '12px 16px',
+        marginBottom: 16,
+        boxShadow: '0 1px 6px rgba(124,58,237,0.06)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+        <ThunderboltOutlined style={{ color: '#a78bfa', fontSize: 14 }} />
+        <span style={{ fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' }}>今日能量</span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flex: 1 }}>
+        {ENERGY_LEVELS.map((lvl) => {
+          const isSelected = value === lvl.value
+          return (
+            <Tooltip key={lvl.value} title={lvl.label}>
+              <button
+                onClick={() => onSelect(lvl.value)}
+                disabled={saving}
+                style={{
+                  flex: 1,
+                  height: 40,
+                  border: isSelected ? '2px solid #7c3aed' : '1.5px solid #e4deff',
+                  borderRadius: 10,
+                  background: isSelected ? '#ede9fe' : '#faf8ff',
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  fontSize: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.15s',
+                  transform: isSelected ? 'scale(1.08)' : 'scale(1)',
+                  opacity: saving ? 0.6 : 1,
+                }}
+              >
+                {lvl.emoji}
+              </button>
+            </Tooltip>
+          )
+        })}
+      </div>
+
+      {value !== null && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          <EditOutlined style={{ color: '#9ca3af', fontSize: 12 }} />
+          <span style={{ fontSize: 12, color: '#9ca3af' }}>
+            {ENERGY_LEVELS.find((l) => l.value === value)?.label}
+          </span>
+        </div>
+      )}
+
+      {value === null && (
+        <span style={{ fontSize: 12, color: '#c4b5fd', flexShrink: 0 }}>点击记录</span>
       )}
     </div>
   )
