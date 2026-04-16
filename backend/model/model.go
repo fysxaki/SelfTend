@@ -72,3 +72,18 @@ type EnergyLog struct {
 	Note        string    `json:"note"`
 	CreatedAt   time.Time `json:"created_at"`
 }
+
+// ReviewLog 每日复盘总结
+type ReviewLog struct {
+	ID        uint      `json:"id" gorm:"primaryKey"`
+	Date      string    `json:"date"`    // YYYY-MM-DD (CST)
+	Summary   string    `json:"summary"` // AI 生成的总结
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// UserConfig 用户配置（key-value）
+type UserConfig struct {
+	ID    uint   `json:"id" gorm:"primaryKey"`
+	Key   string `json:"key" gorm:"uniqueIndex"`
+	Value string `json:"value"`
+}

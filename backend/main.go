@@ -26,6 +26,8 @@ func main() {
 		&model.Prize{},
 		&model.SleepLog{},
 		&model.EnergyLog{},
+		&model.ReviewLog{},
+		&model.UserConfig{},
 	)
 
 	// 仅初始化 UserStats（业务必须存在的系统记录）
@@ -80,6 +82,11 @@ func main() {
 
 		// 数据分析（睡眠 + 能量聚合）
 		api.GET("/analytics", handler.GetAnalytics(db))
+
+		// 每日复盘
+		api.POST("/review/chat", handler.Chat(db))
+		api.POST("/review/save", handler.SaveReview(db))
+		api.GET("/review/logs", handler.GetReviews(db))
 	}
 
 	log.Println("Server running on :8080")

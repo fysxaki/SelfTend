@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AnalyticsItem, EnergyLog, Prize, Season, SleepLog, Task, TaskLog, UserStats } from '@/types'
+import type { AnalyticsItem, ChatMessage, EnergyLog, Prize, ReviewLog, Season, SleepLog, Task, TaskLog, UserStats } from '@/types'
 
 export const http = axios.create({
   baseURL: '/api',
@@ -96,3 +96,11 @@ export const deleteEnergyLog = (id: number) => http.delete(`/energy-logs/${id}`)
 // Analytics
 export const getAnalytics = (params?: { start_date?: string; end_date?: string }) =>
   http.get<AnalyticsItem[], AnalyticsItem[]>('/analytics', { params })
+
+// Review
+export const chat = (messages: ChatMessage[]) =>
+  http.post<{ reply: string }, { reply: string }>('/review/chat', { messages })
+export const saveReview = (summary: string) =>
+  http.post<ReviewLog, ReviewLog>('/review/save', { summary })
+export const getReviews = (limit = 30) =>
+  http.get<ReviewLog[], ReviewLog[]>('/review/logs', { params: { limit } })

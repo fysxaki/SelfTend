@@ -1,6 +1,7 @@
 import {
   AppstoreOutlined,
   BarChartOutlined,
+  BookOutlined,
   GiftOutlined,
   MoonOutlined,
   ScheduleOutlined,
@@ -19,6 +20,7 @@ import {
 import AnalyticsPage from '@/pages/Analytics'
 import Dashboard from '@/pages/Dashboard'
 import Login from '@/pages/Login'
+import ReviewPage from '@/pages/Review'
 import Rewards from '@/pages/Rewards'
 import SeasonPage from '@/pages/Season'
 import SleepPage from '@/pages/Sleep'
@@ -34,6 +36,7 @@ const NAV_ITEMS = [
   { key: '/season',    icon: <TrophyOutlined />,    label: '赛季',  path: '/season' },
   { key: '/sleep',     icon: <MoonOutlined />,      label: '睡眠',  path: '/sleep' },
   { key: '/analytics', icon: <BarChartOutlined />,  label: '分析',  path: '/analytics' },
+  { key: '/review',    icon: <BookOutlined />,      label: '复盘',  path: '/review' },
 ]
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -107,6 +110,7 @@ function AppLayout() {
             <Route path="/season"     element={<SeasonPage />} />
             <Route path="/sleep"      element={<SleepPage />} />
             <Route path="/analytics"  element={<AnalyticsPage />} />
+            <Route path="/review"     element={<ReviewPage />} />
           </Routes>
         </Content>
       </Layout>

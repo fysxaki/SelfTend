@@ -83,3 +83,15 @@ export interface AnalyticsItem {
   penalized: boolean
   penalty_exp: number
 }
+
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface ReviewLog {
+  id: number
+  date: string
+  summary: string
+  created_at: string
+}
