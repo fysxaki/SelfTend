@@ -10,6 +10,7 @@ ExecStart=/opt/selftend/backend/selftend
 Restart=always
 RestartSec=5
 Environment=GIN_MODE=release
+EnvironmentFile=-/opt/selftend/backend/.env
 
 [Install]
 WantedBy=multi-user.target
