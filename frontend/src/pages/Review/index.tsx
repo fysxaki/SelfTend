@@ -13,8 +13,32 @@ import type { ChatMessage, ReviewLog } from '@/types'
 
 const { Text, Paragraph } = Typography
 
+const STORAGE_KEY = 'selftend_review_messages'
+const INITIAL_MSG: ChatMessage = {
+  role: 'assistant',
+  content: '今天怎么样？睡眠、状态、发生了什么——随便说。\n\n说完想要总结的时候，发「总结一下」。',
+}
+
+function loadLocalMessages(today: string): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return [INITIAL_MSG]
+    const { date, messages } = JSON.parse(raw)
+    // 日期不同则清空，只保留当天
+    if (date !== today) return [INITIAL_MSG]
+    return messages as ChatMessage[]
+  } catch {
+    return [INITIAL_MSG]
+  }
+}
+
+function saveLocalMessages(today: string, messages: ChatMessage[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: today, messages }))
+}
+
 export default function ReviewPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const today = dayjs().format('YYYY-MM-DD')
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadLocalMessages(today))
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -24,13 +48,6 @@ export default function ReviewPage() {
 
   useEffect(() => {
     loadHistory()
-    // 初始问候
-    setMessages([
-      {
-        role: 'assistant',
-        content: `今天怎么样？睡眠、状态、发生了什么——随便说。\n\n说完想要总结的时候，发「总结一下」。`,
-      },
-    ])
   }, [])
 
   useEffect(() => {
@@ -48,6 +65,7 @@ export default function ReviewPage() {
 
     const newMessages: ChatMessage[] = [...messages, { role: 'user', content: text }]
     setMessages(newMessages)
+    saveLocalMessages(today, newMessages)
     setInput('')
     setLoading(true)
 
@@ -55,7 +73,9 @@ export default function ReviewPage() {
       // 只把非初始问候的消息发给后端
       const toSend = newMessages.filter((_, i) => i > 0 || newMessages[0].role === 'user')
       const { reply } = await chat(toSend)
-      setMessages([...newMessages, { role: 'assistant', content: reply }])
+      const finalMessages = [...newMessages, { role: 'assistant' as const, content: reply }]
+      setMessages(finalMessages)
+      saveLocalMessages(today, finalMessages)
 
       // 检测是否包含总结，自动提示保存
       if (reply.includes('【今日总结】')) {
