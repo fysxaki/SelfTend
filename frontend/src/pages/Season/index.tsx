@@ -2,7 +2,7 @@ import { EditOutlined, ImportOutlined, PlusOutlined, TrophyOutlined } from '@ant
 import { Button, Checkbox, DatePicker, Form, Input, Modal, Select, Space, Tag, Typography, message } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
-import { createSeason, getIncompleteSeasonTasks, getSeasons, inheritTasks, updateSeason } from '@/api'
+import { createSeason, getIncompleteSeasonTasks, getSeasons, getTasks, inheritTasks, updateSeason } from '@/api'
 import { useAppStore } from '@/stores/useAppStore'
 import type { Season, Task } from '@/types'
 
@@ -115,9 +115,19 @@ export default function SeasonPage() {
   const fetchIncompleteTasks = async (fromSeasonId: number) => {
     setLoadingTasks(true)
     try {
-      const incomplete = await getIncompleteSeasonTasks(fromSeasonId)
-      setInheritTasks_(incomplete || [])
-      setSelectedIds((incomplete || []).map((t) => t.id))
+      // 每日/每周：全部带入（习惯类，无"完成"概念）
+      // 赛季任务：只带入未完成的
+      const [allTasks, incompleteSeason] = await Promise.all([
+        getTasks(fromSeasonId),           // 全部任务（含完成状态）
+        getIncompleteSeasonTasks(fromSeasonId), // 未完成赛季任务
+      ])
+      const incompleteSeasonIds = new Set((incompleteSeason || []).map((t) => t.id))
+      // 过滤：每日/每周全部保留，赛季任务只保留未完成的
+      const toInherit = (allTasks || []).filter(
+        (t) => t.type !== 'season' || incompleteSeasonIds.has(t.id)
+      )
+      setInheritTasks_(toInherit)
+      setSelectedIds(toInherit.map((t) => t.id))
     } finally {
       setLoadingTasks(false)
     }
@@ -296,42 +306,72 @@ export default function SeasonPage() {
               : '勾选要带入的目标（默认全选）'}
           </Text>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {inheritTasks_.map((task) => (
-            <div
-              key={task.id}
-              onClick={() =>
-                setSelectedIds((prev) =>
-                  prev.includes(task.id)
-                    ? prev.filter((id) => id !== task.id)
-                    : [...prev, task.id],
-                )
+        {(() => {
+          const groups = [
+            { type: 'daily', label: '每日任务', color: '#059669', bg: '#ecfdf5' },
+            { type: 'weekly', label: '每周任务', color: '#0284c7', bg: '#eff6ff' },
+            { type: 'season', label: '赛季目标（未完成）', color: '#7c3aed', bg: '#faf8ff' },
+          ]
+          return groups.map(({ type, label, color, bg }) => {
+            const tasks = inheritTasks_.filter((t) => t.type === type)
+            if (tasks.length === 0) return null
+            const allSelected = tasks.every((t) => selectedIds.includes(t.id))
+            const toggleGroup = () => {
+              if (allSelected) {
+                setSelectedIds((prev) => prev.filter((id) => !tasks.find((t) => t.id === id)))
+              } else {
+                setSelectedIds((prev) => [...new Set([...prev, ...tasks.map((t) => t.id)])])
               }
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '10px 14px',
-                borderRadius: 10,
-                border: `1.5px solid ${selectedIds.includes(task.id) ? '#7c3aed' : '#e4deff'}`,
-                background: selectedIds.includes(task.id) ? '#faf8ff' : '#fff',
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-              }}
-            >
-              <Checkbox checked={selectedIds.includes(task.id)} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: '#1e1826' }}>{task.title}</div>
-                {task.description && (
-                  <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>{task.description}</div>
-                )}
+            }
+            return (
+              <div key={type} style={{ marginBottom: 14 }}>
+                <div
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, cursor: 'pointer' }}
+                  onClick={toggleGroup}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 600, color, padding: '2px 8px', borderRadius: 6, background: bg }}>{label}</span>
+                  <span style={{ fontSize: 11, color: '#9ca3af' }}>{allSelected ? '全不选' : '全选'}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {tasks.map((task) => (
+                    <div
+                      key={task.id}
+                      onClick={() =>
+                        setSelectedIds((prev) =>
+                          prev.includes(task.id)
+                            ? prev.filter((id) => id !== task.id)
+                            : [...prev, task.id],
+                        )
+                      }
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: `1.5px solid ${selectedIds.includes(task.id) ? color : '#e4deff'}`,
+                        background: selectedIds.includes(task.id) ? bg : '#fff',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <Checkbox checked={selectedIds.includes(task.id)} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 500, color: '#1e1826' }}>{task.title}</div>
+                        {task.description && (
+                          <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>{task.description}</div>
+                        )}
+                      </div>
+                      <Space size={4}>
+                        <Tag color="purple" style={{ margin: 0, fontSize: 11 }}>{task.exp_reward} 分</Tag>
+                      </Space>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <Space size={4}>
-                <Tag color="purple" style={{ margin: 0, fontSize: 11 }}>{task.exp_reward} 分</Tag>
-              </Space>
-            </div>
-          ))}
-        </div>
+            )
+          })
+        })()}
         <div style={{ marginTop: 12, textAlign: 'right' }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
             已选 {selectedIds.length} / {inheritTasks_.length} 个
