@@ -1,5 +1,5 @@
-import { EditOutlined, PlusOutlined, TrophyOutlined } from '@ant-design/icons'
-import { Button, Checkbox, DatePicker, Form, Input, Modal, Space, Tag, Typography, message } from 'antd'
+import { EditOutlined, ImportOutlined, PlusOutlined, TrophyOutlined } from '@ant-design/icons'
+import { Button, Checkbox, DatePicker, Form, Input, Modal, Select, Space, Tag, Typography, message } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { createSeason, getIncompleteSeasonTasks, getSeasons, inheritTasks, updateSeason } from '@/api'
@@ -19,8 +19,10 @@ export default function SeasonPage() {
   const [inheritOpen, setInheritOpen] = useState(false)
   const [inheritTasks_, setInheritTasks_] = useState<Task[]>([])
   const [selectedIds, setSelectedIds] = useState<number[]>([])
-  const [newSeasonId, setNewSeasonId] = useState<number | null>(null)
+  const [newSeasonId, setNewSeasonId] = useState<number | null>(null)  // 目标赛季
+  const [sourceSeasonId, setSourceSeasonId] = useState<number | null>(null) // 来源赛季
   const [inheriting, setInheriting] = useState(false)
+  const [loadingTasks, setLoadingTasks] = useState(false)
 
   const fetchSeasons = async () => {
     const data = await getSeasons()
@@ -88,21 +90,56 @@ export default function SeasonPage() {
     }
   }
 
+  // 手动触发继承：点赛季卡片上的「继承任务」按钮
+  const openInheritManual = async (targetSeason: Season, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const otherSeasons = seasons.filter((s) => s.id !== targetSeason.id)
+    if (otherSeasons.length === 0) {
+      message.warning('没有其他赛季可以继承')
+      return
+    }
+    setNewSeasonId(targetSeason.id)
+    // 默认选上一个赛季作为来源
+    const defaultSource = otherSeasons[0]
+    setSourceSeasonId(defaultSource.id)
+    await fetchIncompleteTasks(defaultSource.id)
+    setInheritOpen(true)
+  }
+
+  // 切换来源赛季时重新拉任务
+  const onSourceChange = async (id: number) => {
+    setSourceSeasonId(id)
+    await fetchIncompleteTasks(id)
+  }
+
+  const fetchIncompleteTasks = async (fromSeasonId: number) => {
+    setLoadingTasks(true)
+    try {
+      const incomplete = await getIncompleteSeasonTasks(fromSeasonId)
+      setInheritTasks_(incomplete || [])
+      setSelectedIds((incomplete || []).map((t) => t.id))
+    } finally {
+      setLoadingTasks(false)
+    }
+  }
+
   const handleInherit = async () => {
     if (!newSeasonId) return
     setInheriting(true)
     try {
       if (selectedIds.length > 0) {
         const { created } = await inheritTasks(newSeasonId, selectedIds)
-        message.success(`已带入 ${created} 个目标到新赛季`)
+        message.success(`已带入 ${created} 个目标`)
       } else {
-        message.success('赛季创建成功')
+        message.info('未选择任何目标')
       }
     } finally {
       setInheriting(false)
       setInheritOpen(false)
       setInheritTasks_([])
       setSelectedIds([])
+      setNewSeasonId(null)
+      setSourceSeasonId(null)
     }
   }
 
@@ -140,26 +177,39 @@ export default function SeasonPage() {
                 position: 'relative',
               }}
             >
-              {/* 编辑按钮 */}
-              <button
-                onClick={(e) => openEdit(season, e)}
-                title="编辑赛季"
-                style={{
-                  position: 'absolute', top: 16, right: 16,
-                  border: '1px solid #e4deff',
-                  background: 'transparent',
-                  borderRadius: 8,
-                  width: 28, height: 28,
-                  cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#9ca3af', fontSize: 13,
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.borderColor = '#7c3aed' }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.borderColor = '#e4deff' }}
-              >
-                <EditOutlined />
-              </button>
+              {/* 操作按钮组 */}
+              <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 6 }}>
+                {seasons.length > 1 && (
+                  <button
+                    onClick={(e) => openInheritManual(season, e)}
+                    title="从其他赛季继承未完成目标"
+                    style={{
+                      border: '1px solid #e4deff', background: 'transparent',
+                      borderRadius: 8, width: 28, height: 28, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#9ca3af', fontSize: 13, transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.borderColor = '#7c3aed' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.borderColor = '#e4deff' }}
+                  >
+                    <ImportOutlined />
+                  </button>
+                )}
+                <button
+                  onClick={(e) => openEdit(season, e)}
+                  title="编辑赛季"
+                  style={{
+                    border: '1px solid #e4deff', background: 'transparent',
+                    borderRadius: 8, width: 28, height: 28, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#9ca3af', fontSize: 13, transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.borderColor = '#7c3aed' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.borderColor = '#e4deff' }}
+                >
+                  <EditOutlined />
+                </button>
+              </div>
 
               <div style={{ paddingRight: 40 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -216,17 +266,34 @@ export default function SeasonPage() {
 
       {/* 继承未完成任务弹窗 */}
       <Modal
-        title="上赛季有未完成的目标"
+        title="继承未完成的赛季目标"
         open={inheritOpen}
         onOk={handleInherit}
-        onCancel={() => { setInheritOpen(false); message.success('赛季创建成功') }}
-        okText="带入新赛季"
-        cancelText="跳过"
+        onCancel={() => { setInheritOpen(false) }}
+        okText={`带入 ${selectedIds.length} 个目标`}
+        cancelText="取消"
         confirmLoading={inheriting}
+        okButtonProps={{ disabled: selectedIds.length === 0 }}
       >
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 8 }}>
+            <Text style={{ fontSize: 13 }}>从哪个赛季继承：</Text>
+          </div>
+          <Select
+            style={{ width: '100%' }}
+            value={sourceSeasonId}
+            onChange={onSourceChange}
+            loading={loadingTasks}
+            options={seasons
+              .filter((s) => s.id !== newSeasonId)
+              .map((s) => ({ value: s.id, label: s.name }))}
+          />
+        </div>
         <div style={{ marginBottom: 12 }}>
           <Text type="secondary" style={{ fontSize: 13 }}>
-            选择要延续到新赛季的目标，未选中的不会被带入
+            {loadingTasks ? '加载中...' : inheritTasks_.length === 0
+              ? '该赛季没有未完成的赛季目标'
+              : '勾选要带入的目标（默认全选）'}
           </Text>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
