@@ -1,10 +1,12 @@
 import { EditOutlined, PlusOutlined, TrophyOutlined } from '@ant-design/icons'
-import { Button, DatePicker, Form, Input, Modal, message } from 'antd'
+import { Button, Checkbox, DatePicker, Form, Input, Modal, Space, Tag, Typography, message } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
-import { createSeason, getSeasons, updateSeason } from '@/api'
+import { createSeason, getIncompleteSeasonTasks, getSeasons, inheritTasks, updateSeason } from '@/api'
 import { useAppStore } from '@/stores/useAppStore'
-import type { Season } from '@/types'
+import type { Season, Task } from '@/types'
+
+const { Text } = Typography
 
 export default function SeasonPage() {
   const { currentSeason, setCurrentSeason } = useAppStore()
@@ -12,6 +14,13 @@ export default function SeasonPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Season | null>(null)
   const [form] = Form.useForm()
+
+  // 继承弹窗状态
+  const [inheritOpen, setInheritOpen] = useState(false)
+  const [inheritTasks_, setInheritTasks_] = useState<Task[]>([])
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [newSeasonId, setNewSeasonId] = useState<number | null>(null)
+  const [inheriting, setInheriting] = useState(false)
 
   const fetchSeasons = async () => {
     const data = await getSeasons()
@@ -55,17 +64,46 @@ export default function SeasonPage() {
     if (editing) {
       const updated = await updateSeason(editing.id, payload)
       message.success('赛季已更新')
-      // 如果当前赛季就是被编辑的那个，同步更新 store
-      if (currentSeason?.id === editing.id) {
-        setCurrentSeason(updated)
-      }
+      if (currentSeason?.id === editing.id) setCurrentSeason(updated)
+      setModalOpen(false)
+      fetchSeasons()
     } else {
       const season = await createSeason(payload)
-      message.success('赛季创建成功')
       setCurrentSeason(season)
+      setModalOpen(false)
+      await fetchSeasons()
+
+      // 检测上一赛季是否有未完成的赛季任务
+      if (currentSeason) {
+        const incomplete = await getIncompleteSeasonTasks(currentSeason.id)
+        if (incomplete && incomplete.length > 0) {
+          setNewSeasonId(season.id)
+          setInheritTasks_(incomplete)
+          setSelectedIds(incomplete.map((t) => t.id)) // 默认全选
+          setInheritOpen(true)
+          return
+        }
+      }
+      message.success('赛季创建成功')
     }
-    setModalOpen(false)
-    fetchSeasons()
+  }
+
+  const handleInherit = async () => {
+    if (!newSeasonId) return
+    setInheriting(true)
+    try {
+      if (selectedIds.length > 0) {
+        const { created } = await inheritTasks(newSeasonId, selectedIds)
+        message.success(`已带入 ${created} 个目标到新赛季`)
+      } else {
+        message.success('赛季创建成功')
+      }
+    } finally {
+      setInheriting(false)
+      setInheritOpen(false)
+      setInheritTasks_([])
+      setSelectedIds([])
+    }
   }
 
   return (
@@ -174,6 +212,64 @@ export default function SeasonPage() {
             <DatePicker.RangePicker style={{ width: '100%' }} />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* 继承未完成任务弹窗 */}
+      <Modal
+        title="上赛季有未完成的目标"
+        open={inheritOpen}
+        onOk={handleInherit}
+        onCancel={() => { setInheritOpen(false); message.success('赛季创建成功') }}
+        okText="带入新赛季"
+        cancelText="跳过"
+        confirmLoading={inheriting}
+      >
+        <div style={{ marginBottom: 12 }}>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            选择要延续到新赛季的目标，未选中的不会被带入
+          </Text>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {inheritTasks_.map((task) => (
+            <div
+              key={task.id}
+              onClick={() =>
+                setSelectedIds((prev) =>
+                  prev.includes(task.id)
+                    ? prev.filter((id) => id !== task.id)
+                    : [...prev, task.id],
+                )
+              }
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 14px',
+                borderRadius: 10,
+                border: `1.5px solid ${selectedIds.includes(task.id) ? '#7c3aed' : '#e4deff'}`,
+                background: selectedIds.includes(task.id) ? '#faf8ff' : '#fff',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              <Checkbox checked={selectedIds.includes(task.id)} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: '#1e1826' }}>{task.title}</div>
+                {task.description && (
+                  <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>{task.description}</div>
+                )}
+              </div>
+              <Space size={4}>
+                <Tag color="purple" style={{ margin: 0, fontSize: 11 }}>{task.exp_reward} 分</Tag>
+              </Space>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 12, textAlign: 'right' }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            已选 {selectedIds.length} / {inheritTasks_.length} 个
+          </Text>
+        </div>
       </Modal>
     </div>
   )

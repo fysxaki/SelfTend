@@ -42,6 +42,10 @@ export const updateSeason = (id: number, data: Partial<Season>) =>
 // Tasks
 export const getTasks = (seasonId: number, type?: string) =>
   http.get<Task[], Task[]>(`/seasons/${seasonId}/tasks`, { params: { type } })
+export const getIncompleteSeasonTasks = (seasonId: number) =>
+  http.get<Task[], Task[]>(`/seasons/${seasonId}/incomplete-tasks`)
+export const inheritTasks = (newSeasonId: number, taskIds: number[]) =>
+  http.post<{ created: number }, { created: number }>(`/seasons/${newSeasonId}/inherit-tasks`, { task_ids: taskIds })
 export const createTask = (data: Omit<Task, 'id'>) =>
   http.post<Task, Task>('/tasks', data)
 export const updateTask = (id: number, data: Partial<Task>) =>

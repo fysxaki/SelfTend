@@ -142,3 +142,83 @@ func DeleteTask(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
 }
+
+// GetIncompleteSeasonTasks 返回指定赛季中未完成的赛季任务
+func GetIncompleteSeasonTasks(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		seasonID, _ := strconv.Atoi(c.Param("id"))
+
+		var season model.Season
+		if err := db.First(&season, seasonID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "season not found"})
+			return
+		}
+
+		// 只查赛季任务
+		var tasks []model.Task
+		db.Where("season_id = ? AND type = ?", seasonID, "season").Find(&tasks)
+
+		// 赛季开始时间（CST）
+		seasonStartTime, _ := time.ParseInLocation("2006-01-02", season.StartDate, cst)
+		seasonEndTime, _ := time.ParseInLocation("2006-01-02", season.EndDate, cst)
+		seasonEndTime = seasonEndTime.Add(24 * time.Hour) // 包含结束当天
+
+		// 筛选出在该赛季内未完成的任务
+		var incomplete []model.Task
+		for _, t := range tasks {
+			var count int64
+			db.Model(&model.TaskLog{}).
+				Where("task_id = ? AND completed_at >= ? AND completed_at < ?",
+					t.ID, seasonStartTime.UTC(), seasonEndTime.UTC()).
+				Count(&count)
+			if count == 0 {
+				incomplete = append(incomplete, t)
+			}
+		}
+
+		if incomplete == nil {
+			incomplete = []model.Task{}
+		}
+		c.JSON(http.StatusOK, incomplete)
+	}
+}
+
+// InheritTasksReq 继承任务请求体
+type InheritTasksReq struct {
+	TaskIDs []uint `json:"task_ids"`
+}
+
+// InheritTasks 将指定任务复制到目标赛季
+func InheritTasks(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		newSeasonID, _ := strconv.Atoi(c.Param("id"))
+
+		var req InheritTasksReq
+		if err := c.ShouldBindJSON(&req); err != nil || len(req.TaskIDs) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "task_ids 不能为空"})
+			return
+		}
+
+		var sourceTasks []model.Task
+		db.Where("id IN ?", req.TaskIDs).Find(&sourceTasks)
+
+		var created []model.Task
+		for _, t := range sourceTasks {
+			newTask := model.Task{
+				SeasonID:    uint(newSeasonID),
+				Title:       t.Title,
+				Description: t.Description,
+				Category:    t.Category,
+				Type:        t.Type,
+				Timing:      t.Timing,
+				Difficulty:  t.Difficulty,
+				ExpReward:   t.ExpReward,
+				SortOrder:   t.SortOrder,
+			}
+			db.Create(&newTask)
+			created = append(created, newTask)
+		}
+
+		c.JSON(http.StatusOK, gin.H{"created": len(created)})
+	}
+}

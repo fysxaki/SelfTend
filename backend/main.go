@@ -51,6 +51,8 @@ func main() {
 		api.GET("/seasons/:id", handler.GetSeason(db))
 		api.PUT("/seasons/:id", handler.UpdateSeason(db))
 		api.GET("/seasons/:id/tasks", handler.GetTasks(db))
+		api.GET("/seasons/:id/incomplete-tasks", handler.GetIncompleteSeasonTasks(db))
+		api.POST("/seasons/:id/inherit-tasks", handler.InheritTasks(db))
 
 		api.POST("/tasks", handler.CreateTask(db))
 		api.PUT("/tasks/:id", handler.UpdateTask(db))
