@@ -53,8 +53,9 @@ export const updateTask = (id: number, data: Partial<Task>) =>
 export const deleteTask = (id: number) => http.delete(`/tasks/${id}`)
 
 // TaskLog
+export type CompleteTaskResult = { task_log: TaskLog; penalty_applied: boolean }
 export const completeTask = (taskId: number, note?: string, expOverride?: number) =>
-  http.post<TaskLog, TaskLog>('/task-logs', {
+  http.post<CompleteTaskResult, CompleteTaskResult>('/task-logs', {
     task_id: taskId,
     note,
     ...(expOverride !== undefined ? { exp_override: expOverride } : {}),

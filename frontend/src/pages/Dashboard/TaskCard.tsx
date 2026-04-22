@@ -2,12 +2,13 @@ import { CheckOutlined, LoadingOutlined, UndoOutlined } from '@ant-design/icons'
 import { Modal, message } from 'antd'
 import { useState } from 'react'
 import { undoTask } from '@/api'
+import type { CompleteTaskResult } from '@/api'
 import type { Task } from '@/types'
 import { CATEGORY_CONFIG, DIFFICULTY_CONFIG, TIMING_CONFIG, formatExp } from '@/utils/task'
 
 interface Props {
   task: Task
-  onComplete: (task: Task, expOverride?: number) => Promise<void>
+  onComplete: (task: Task, expOverride?: number) => Promise<CompleteTaskResult>
   onUndo: (task: Task) => Promise<void>
 }
 
@@ -40,9 +41,16 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
   const doComplete = async (expOverride?: number) => {
     setLoading(true)
     try {
-      await onComplete(task, expOverride)
-      const awardedExp = expOverride ?? task.exp_reward
-      message.success(`✅ +${formatExp(awardedExp)} 积分`)
+      const res = await onComplete(task, expOverride)
+      const actualExp = res.task_log.exp_awarded
+      if (res.penalty_applied) {
+        message.warning({
+          content: `😴 晚睡惩罚 -20%  实得 +${formatExp(actualExp)} 积分`,
+          duration: 4,
+        })
+      } else {
+        message.success(`✅ +${formatExp(actualExp)} 积分`)
+      }
     } finally {
       setLoading(false)
     }

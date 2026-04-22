@@ -63,10 +63,9 @@ func CreateSleepLog(db *gorm.DB) gin.HandlerFunc {
 			Duration:  duration,
 		}
 
-		// 检查是否触发惩罚：入睡时间 > 01:30
-		penalized, penaltyExp := checkAndApplyPenalty(db, req.SleepTime)
-		log.Penalized = penalized
-		log.PenaltyExp = penaltyExp
+		// 检查是否触发惩罚标记（不在此处扣分，每次完成任务时实时扣）
+		log.Penalized = isSleepPenalized(req.SleepTime)
+		log.PenaltyExp = 0
 
 		db.Create(&log)
 		c.JSON(http.StatusOK, log)
@@ -120,24 +119,12 @@ func UpdateSleepLog(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 如果之前有惩罚，先退还
-		if log.Penalized && log.PenaltyExp > 0 {
-			var stats model.UserStats
-			db.First(&stats)
-			stats.SpendableExp += log.PenaltyExp
-			stats.TotalExp += log.PenaltyExp
-			stats.Level = calcLevel(stats.TotalExp)
-			db.Save(&stats)
-		}
-
-		// 重新检查惩罚
-		penalized, penaltyExp := checkAndApplyPenalty(db, sleepTime)
-
+		// 重新检查惩罚标记（不退还/不扣分，任务完成时实时处理）
 		log.SleepTime = sleepTime
 		log.WakeTime = defaultWakeTime
 		log.Duration = duration
-		log.Penalized = penalized
-		log.PenaltyExp = penaltyExp
+		log.Penalized = isSleepPenalized(sleepTime)
+		log.PenaltyExp = 0
 		db.Save(&log)
 
 		c.JSON(http.StatusOK, log)
@@ -152,16 +139,6 @@ func DeleteSleepLog(db *gorm.DB) gin.HandlerFunc {
 		if err := db.First(&log, id).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "记录不存在"})
 			return
-		}
-
-		// 退还惩罚积分
-		if log.Penalized && log.PenaltyExp > 0 {
-			var stats model.UserStats
-			db.First(&stats)
-			stats.SpendableExp += log.PenaltyExp
-			stats.TotalExp += log.PenaltyExp
-			stats.Level = calcLevel(stats.TotalExp)
-			db.Save(&stats)
 		}
 
 		db.Delete(&log)
@@ -199,53 +176,18 @@ func calcSleepDuration(date, sleepTimeStr, wakeTimeStr string) (float64, error) 
 	return duration, nil
 }
 
-// checkAndApplyPenalty 检查是否超过 01:30 入睡，超过则扣今日积分 20%
-func checkAndApplyPenalty(db *gorm.DB, sleepTimeStr string) (bool, float64) {
-	// 解析 HH:MM
+// isSleepPenalized 判断入睡时间是否超过 01:30（凌晨惩罚区间 00:00~05:59）
+// 只返回布尔值；实际扣分在每次任务完成时实时执行
+func isSleepPenalized(sleepTimeStr string) bool {
 	var h, m int
 	fmt.Sscanf(sleepTimeStr, "%d:%d", &h, &m)
+	isLateNight := h >= 0 && h < 6
+	return isLateNight && (h > penaltyThresholdHour || (h == penaltyThresholdHour && m > penaltyThresholdMin))
+}
 
-	// 判断是否超过阈值（01:30）
-	// 深夜区间：00:00 ~ 05:00 都算"过晚"（凌晨）
-	// 晚上区间：22:00 ~ 23:59 不算惩罚（算正常早睡）
-	// 惩罚区间：00:00 ~ 05:00 中 > 01:30 的部分
-	isLateNight := h >= 0 && h < 6 // 00:00 ~ 05:59 算凌晨
-	overThreshold := isLateNight && (h > penaltyThresholdHour || (h == penaltyThresholdHour && m > penaltyThresholdMin))
-
-	if !overThreshold {
-		return false, 0
-	}
-
-	// 计算今日已获积分（今天 CST 范围内的 task log 积分之和）
-	todayStart, todayEnd := todayRangeUTC()
-	type result struct {
-		Total float64
-	}
-	var r result
-	db.Model(&model.TaskLog{}).
-		Select("COALESCE(SUM(exp_awarded), 0) as total").
-		Where("completed_at >= ? AND completed_at < ?", todayStart, todayEnd).
-		Scan(&r)
-
-	todayExp := r.Total
-	if todayExp <= 0 {
-		return true, 0 // 惩罚触发但今日无积分可扣
-	}
-
-	penalty := todayExp * 0.2
-
-	var stats model.UserStats
-	db.First(&stats)
-	stats.SpendableExp -= penalty
-	stats.TotalExp -= penalty
-	if stats.SpendableExp < 0 {
-		stats.SpendableExp = 0
-	}
-	if stats.TotalExp < 0 {
-		stats.TotalExp = 0
-	}
-	stats.Level = calcLevel(stats.TotalExp)
-	db.Save(&stats)
-
-	return true, penalty
+// TodaySleepPenalty 供外部查询今天是否有晚睡惩罚标记
+func TodaySleepPenalty(db *gorm.DB) bool {
+	todayCST := time.Now().In(cst).Format("2006-01-02")
+	var sl model.SleepLog
+	return db.Where("date = ? AND penalized = ?", todayCST, true).First(&sl).Error == nil
 }

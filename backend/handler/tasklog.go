@@ -35,15 +35,24 @@ func CompleteTask(db *gorm.DB) gin.HandlerFunc {
 			exp = req.ExpOverride
 		}
 
-		log := model.TaskLog{
+		// 实时检查今日晚睡惩罚标记，有则本次积分 ×0.8
+		penaltyApplied := TodaySleepPenalty(db)
+		if penaltyApplied {
+			exp = exp * 0.8
+		}
+
+		taskLog := model.TaskLog{
 			TaskID:      req.TaskID,
 			CompletedAt: time.Now(),
 			Note:        req.Note,
-			ExpAwarded:  exp, // 记录实际发放积分
+			ExpAwarded:  exp,
 		}
-		db.Create(&log)
+		db.Create(&taskLog)
 		updateUserStats(db, exp)
-		c.JSON(http.StatusOK, log)
+		c.JSON(http.StatusOK, gin.H{
+			"task_log":       taskLog,
+			"penalty_applied": penaltyApplied,
+		})
 	}
 }
 

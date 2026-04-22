@@ -61,8 +61,9 @@ export default function Dashboard() {
   }, [currentSeason])
 
   const handleComplete = async (task: Task, expOverride?: number) => {
-    await completeTask(task.id, undefined, expOverride)
+    const res = await completeTask(task.id, undefined, expOverride)
     await loadTasks()
+    return res
   }
 
   const handleUndo = async (_task: Task) => {
