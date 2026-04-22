@@ -122,9 +122,9 @@ export default function SeasonPage() {
         getIncompleteSeasonTasks(fromSeasonId), // 未完成赛季任务
       ])
       const incompleteSeasonIds = new Set((incompleteSeason || []).map((t) => t.id))
-      // 过滤：每日/每周全部保留，赛季任务只保留未完成的
+      // 过滤：每日/每周全部保留，赛季/一次性任务只保留未完成的
       const toInherit = (allTasks || []).filter(
-        (t) => t.type !== 'season' || incompleteSeasonIds.has(t.id)
+        (t) => (t.type !== 'season' && t.type !== 'once') || incompleteSeasonIds.has(t.id)
       )
       setInheritTasks_(toInherit)
       setSelectedIds(toInherit.map((t) => t.id))
@@ -311,6 +311,7 @@ export default function SeasonPage() {
             { type: 'daily', label: '每日任务', color: '#059669', bg: '#ecfdf5' },
             { type: 'weekly', label: '每周任务', color: '#0284c7', bg: '#eff6ff' },
             { type: 'season', label: '赛季目标（未完成）', color: '#7c3aed', bg: '#faf8ff' },
+            { type: 'once',   label: '一次性任务（未完成）', color: '#0891b2', bg: '#ecfeff' },
           ]
           return groups.map(({ type, label, color, bg }) => {
             const tasks = inheritTasks_.filter((t) => t.type === type)

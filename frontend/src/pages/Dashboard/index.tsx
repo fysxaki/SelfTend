@@ -14,21 +14,24 @@ export default function Dashboard() {
   const [dailyTasks, setDailyTasks]   = useState<Task[]>([])
   const [weeklyTasks, setWeeklyTasks] = useState<Task[]>([])
   const [seasonTasks, setSeasonTasks] = useState<Task[]>([])
+  const [onceTasks, setOnceTasks]     = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [todayEnergy, setTodayEnergy] = useState<EnergyLog | null>(null)
   const [energySaving, setEnergySaving] = useState(false)
 
   const loadTasks = async () => {
     if (!currentSeason) return
-    const [daily, weekly, season] = await Promise.all([
+    const [daily, weekly, season, once] = await Promise.all([
       getTasks(currentSeason.id, 'daily'),
       getTasks(currentSeason.id, 'weekly'),
       getTasks(currentSeason.id, 'season'),
+      getTasks(currentSeason.id, 'once'),
       fetchStats(),
     ])
     setDailyTasks(daily)
     setWeeklyTasks(weekly)
     setSeasonTasks(season)
+    setOnceTasks(once)
   }
 
   const loadEnergy = async () => {
@@ -85,6 +88,8 @@ export default function Dashboard() {
   const dailyDone  = dailyTasks.filter((t) => t.completed_today).length
   const weeklyDone = weeklyTasks.filter((t) => t.completed_this_week).length
   const seasonDone = seasonTasks.filter((t) => t.completed_in_season).length
+  const onceDone   = onceTasks.filter((t) => t.completed_in_season).length
+  const oncePending = onceTasks.filter((t) => !t.completed_in_season).length
   const daysLeft   = dayjs(currentSeason.end_date).diff(dayjs(), 'day')
 
 
@@ -195,6 +200,19 @@ export default function Dashboard() {
               badge={`${seasonDone}/${seasonTasks.length}`}
               hint="赛季内完成即可"
               tasks={seasonTasks}
+              empty=""
+              onComplete={handleComplete}
+              onUndo={handleUndo}
+            />
+          )}
+
+          {/* 一次性任务：只展示未完成的，全做完后隐藏 */}
+          {oncePending > 0 && (
+            <TaskSection
+              title="一次性任务"
+              badge={`${onceDone}/${onceTasks.length}`}
+              hint="完成即归档"
+              tasks={onceTasks}
               empty=""
               onComplete={handleComplete}
               onUndo={handleUndo}

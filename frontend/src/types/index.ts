@@ -1,5 +1,5 @@
 export type TaskCategory = 'health' | 'work' | 'life' | 'mood'
-export type TaskType = 'daily' | 'weekly' | 'season'
+export type TaskType = 'daily' | 'weekly' | 'season' | 'once'
 export type TaskDifficulty = 'easy' | 'normal' | 'hard'
 export type TaskTiming = 'morning' | 'evening' | 'both' | 'out' | 'anytime'
 export type PrizeCategory = 'camera' | 'watch' | 'phone' | 'other'

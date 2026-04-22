@@ -10,6 +10,7 @@ const TYPE_OPTIONS = [
   { label: '每日任务', value: 'daily' },
   { label: '每周任务', value: 'weekly' },
   { label: '赛季任务', value: 'season' },
+  { label: '一次性任务', value: 'once' },
 ]
 
 export default function Tasks() {
@@ -91,8 +92,8 @@ export default function Tasks() {
       dataIndex: 'type',
       width: 80,
       render: (type: TaskType) => {
-        const map = { daily: '每日', weekly: '每周', season: '赛季' }
-        const colorMap = { daily: 'blue', weekly: 'purple', season: 'gold' }
+        const map = { daily: '每日', weekly: '每周', season: '赛季', once: '一次性' }
+        const colorMap = { daily: 'blue', weekly: 'purple', season: 'gold', once: 'cyan' }
         return <Tag color={colorMap[type]}>{map[type]}</Tag>
       },
     },

@@ -154,9 +154,9 @@ func GetIncompleteSeasonTasks(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 只查赛季任务
+		// 查赛季任务 + 一次性任务（都是「做一次即完成」的类型）
 		var tasks []model.Task
-		db.Where("season_id = ? AND type = ?", seasonID, "season").Find(&tasks)
+		db.Where("season_id = ? AND type IN ?", seasonID, []string{"season", "once"}).Find(&tasks)
 
 		// 赛季开始时间（CST）
 		seasonStartTime, _ := time.ParseInLocation("2006-01-02", season.StartDate, cst)
