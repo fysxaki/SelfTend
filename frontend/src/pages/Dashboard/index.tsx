@@ -3,6 +3,7 @@ import { Progress, Spin, Tooltip, message } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { completeTask, createEnergyLog, getEnergyLogs, getTasks, updateEnergyLog } from '@/api'
+import type { CompleteTaskResult } from '@/api'
 import { useAppStore } from '@/stores/useAppStore'
 import type { EnergyLog, Task } from '@/types'
 import { calcLevel, formatExp } from '@/utils/task'
@@ -296,7 +297,7 @@ interface SectionProps {
   hint: string
   tasks: Task[]
   empty: string
-  onComplete: (t: Task, expOverride?: number) => Promise<void>
+  onComplete: (t: Task, expOverride?: number) => Promise<CompleteTaskResult>
   onUndo: (t: Task) => Promise<void>
 }
 

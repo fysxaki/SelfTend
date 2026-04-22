@@ -34,6 +34,7 @@ export interface TaskLog {
   task_id: number
   completed_at: string
   note: string
+  exp_awarded: number
 }
 
 export interface UserStats {
