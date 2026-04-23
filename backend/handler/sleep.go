@@ -63,9 +63,11 @@ func CreateSleepLog(db *gorm.DB) gin.HandlerFunc {
 			Duration:  duration,
 		}
 
-		// 检查是否触发惩罚标记（不在此处扣分，每次完成任务时实时扣）
+		// 检查是否触发惩罚：同时补扣今天已完成任务的20%
 		log.Penalized = isSleepPenalized(req.SleepTime)
-		log.PenaltyExp = 0
+		if log.Penalized {
+			log.PenaltyExp = applyRetroactivePenalty(db)
+		}
 
 		db.Create(&log)
 		c.JSON(http.StatusOK, log)
@@ -119,12 +121,20 @@ func UpdateSleepLog(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 重新检查惩罚标记（不退还/不扣分，任务完成时实时处理）
+		// 先退还上次记录的补扣金额（如果有）
+		if log.Penalized && log.PenaltyExp > 0 {
+			refundStats(db, log.PenaltyExp)
+		}
+
+		// 重新计算惩罚
 		log.SleepTime = sleepTime
 		log.WakeTime = defaultWakeTime
 		log.Duration = duration
 		log.Penalized = isSleepPenalized(sleepTime)
 		log.PenaltyExp = 0
+		if log.Penalized {
+			log.PenaltyExp = applyRetroactivePenalty(db)
+		}
 		db.Save(&log)
 
 		c.JSON(http.StatusOK, log)
@@ -139,6 +149,11 @@ func DeleteSleepLog(db *gorm.DB) gin.HandlerFunc {
 		if err := db.First(&log, id).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "记录不存在"})
 			return
+		}
+
+		// 退还补扣的积分
+		if log.Penalized && log.PenaltyExp > 0 {
+			refundStats(db, log.PenaltyExp)
 		}
 
 		db.Delete(&log)
@@ -190,4 +205,45 @@ func TodaySleepPenalty(db *gorm.DB) bool {
 	todayCST := time.Now().In(cst).Format("2006-01-02")
 	var sl model.SleepLog
 	return db.Where("date = ? AND penalized = ?", todayCST, true).First(&sl).Error == nil
+}
+
+// applyRetroactivePenalty 补扣今天已完成任务积分的20%，返回扣除金额
+func applyRetroactivePenalty(db *gorm.DB) float64 {
+	todayStart, todayEnd := todayRangeUTC()
+	type sumResult struct{ Total float64 }
+	var r sumResult
+	db.Model(&model.TaskLog{}).
+		Select("COALESCE(SUM(exp_awarded), 0) as total").
+		Where("completed_at >= ? AND completed_at < ?", todayStart, todayEnd).
+		Scan(&r)
+	if r.Total <= 0 {
+		return 0
+	}
+	penalty := r.Total * 0.2
+	var stats model.UserStats
+	db.First(&stats)
+	stats.SpendableExp -= penalty
+	stats.TotalExp -= penalty
+	if stats.SpendableExp < 0 {
+		stats.SpendableExp = 0
+	}
+	if stats.TotalExp < 0 {
+		stats.TotalExp = 0
+	}
+	stats.Level = calcLevel(stats.TotalExp)
+	db.Save(&stats)
+	return penalty
+}
+
+// refundStats 退还积分到 UserStats
+func refundStats(db *gorm.DB, amount float64) {
+	if amount <= 0 {
+		return
+	}
+	var stats model.UserStats
+	db.First(&stats)
+	stats.SpendableExp += amount
+	stats.TotalExp += amount
+	stats.Level = calcLevel(stats.TotalExp)
+	db.Save(&stats)
 }
