@@ -1,5 +1,5 @@
 import { CheckOutlined, LoadingOutlined, UndoOutlined } from '@ant-design/icons'
-import { Modal, message } from 'antd'
+import { Button, Modal, Space, message } from 'antd'
 import { useState } from 'react'
 import { undoTask } from '@/api'
 import type { CompleteTaskResult } from '@/api'
@@ -15,6 +15,7 @@ interface Props {
 export default function TaskCard({ task, onComplete, onUndo }: Props) {
   const [loading, setLoading] = useState(false)
   const [undoing, setUndoing] = useState(false)
+  const [bothModalOpen, setBothModalOpen] = useState(false)
   const isCompleted =
     task.type === 'weekly'                         ? !!task.completed_this_week :
     task.type === 'season' || task.type === 'once' ? !!task.completed_in_season :
@@ -56,29 +57,7 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
     }
   }
 
-  const showBothChoiceModal = () => {
-    Modal.confirm({
-      title: `「${task.title}」完成情况`,
-      icon: null,
-      content: (
-        <div style={{ marginTop: 4, color: '#6b7280', fontSize: 13 }}>
-          早晚都做了可以获得全部积分，只做了晚上获得一半积分。
-        </div>
-      ),
-      okText: `☀️🌙 早晚都完成  +${formatExp(task.exp_reward)} 分`,
-      cancelText: `🌙 只做了晚上  +${formatExp(partialExp)} 分`,
-      // okButtonProps 和 cancelButtonProps 都作为"确认"入口
-      onOk: () => doComplete(),                   // 全部完成
-      onCancel: () => doComplete(partialExp),     // 只完成晚上
-      // 覆盖默认样式，让取消按钮也像一个正经选项
-      cancelButtonProps: {
-        style: { color: '#7c3aed', borderColor: '#e4deff' },
-      },
-      // 关闭右上角 × 以防误触退出
-      closable: false,
-      maskClosable: false,
-    })
-  }
+  const showBothChoiceModal = () => setBothModalOpen(true)
 
   const handleUndo = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -175,6 +154,35 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
           {undoing ? <LoadingOutlined /> : <UndoOutlined />}
         </button>
       )}
+
+      {/* 早晚完成选择弹窗 */}
+      <Modal
+        title={`「${task.title}」完成情况`}
+        open={bothModalOpen}
+        onCancel={() => setBothModalOpen(false)}
+        footer={null}
+        centered
+      >
+        <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>
+          早晚都做了可以获得全部积分，只做了晚上获得一半积分。
+        </p>
+        <Space direction="vertical" style={{ width: '100%' }} size={10}>
+          <Button
+            block
+            type="primary"
+            onClick={() => { setBothModalOpen(false); doComplete() }}
+          >
+            ☀️🌙 早晚都完成 &nbsp;+{formatExp(task.exp_reward)} 分
+          </Button>
+          <Button
+            block
+            onClick={() => { setBothModalOpen(false); doComplete(partialExp) }}
+            style={{ color: '#7c3aed', borderColor: '#e4deff' }}
+          >
+            🌙 只做了晚上 &nbsp;+{formatExp(partialExp)} 分
+          </Button>
+        </Space>
+      </Modal>
     </div>
   )
 }
