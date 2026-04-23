@@ -155,14 +155,14 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
         </button>
       )}
 
-      {/* 早晚完成选择弹窗 */}
+      {/* 早晚完成选择弹窗，用 div 阻断冒泡到卡片的 onClick */}
+      <div onClick={(e) => e.stopPropagation()}>
       <Modal
         title={`「${task.title}」完成情况`}
         open={bothModalOpen}
-        onCancel={(e) => { e.stopPropagation(); setBothModalOpen(false) }}
+        onCancel={() => setBothModalOpen(false)}
         footer={null}
         centered
-        onClick={(e) => e.stopPropagation()}
       >
         <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>
           早晚都做了可以获得全部积分，只做了晚上获得一半积分。
@@ -184,6 +184,7 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
           </Button>
         </Space>
       </Modal>
+      </div>
     </div>
   )
 }
