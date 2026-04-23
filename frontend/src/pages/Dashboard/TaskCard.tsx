@@ -159,9 +159,10 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
       <Modal
         title={`「${task.title}」完成情况`}
         open={bothModalOpen}
-        onCancel={() => setBothModalOpen(false)}
+        onCancel={(e) => { e.stopPropagation(); setBothModalOpen(false) }}
         footer={null}
         centered
+        onClick={(e) => e.stopPropagation()}
       >
         <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>
           早晚都做了可以获得全部积分，只做了晚上获得一半积分。
