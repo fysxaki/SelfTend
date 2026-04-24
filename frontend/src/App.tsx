@@ -8,7 +8,7 @@ import {
   TrophyOutlined,
 } from '@ant-design/icons'
 import { ConfigProvider, Spin, Layout, theme } from 'antd'
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import {
   NavLink,
   Navigate,
@@ -17,15 +17,16 @@ import {
   Routes,
   useLocation,
 } from 'react-router-dom'
-import AnalyticsPage from '@/pages/Analytics'
-import Dashboard from '@/pages/Dashboard'
-import Login from '@/pages/Login'
-import ReviewPage from '@/pages/Review'
-import Rewards from '@/pages/Rewards'
-import SeasonPage from '@/pages/Season'
-import SleepPage from '@/pages/Sleep'
-import Tasks from '@/pages/Tasks'
 import { useAppStore } from '@/stores/useAppStore'
+
+const Dashboard    = lazy(() => import('@/pages/Dashboard'))
+const Tasks        = lazy(() => import('@/pages/Tasks'))
+const Rewards      = lazy(() => import('@/pages/Rewards'))
+const SeasonPage   = lazy(() => import('@/pages/Season'))
+const SleepPage    = lazy(() => import('@/pages/Sleep'))
+const AnalyticsPage = lazy(() => import('@/pages/Analytics'))
+const ReviewPage   = lazy(() => import('@/pages/Review'))
+const Login        = lazy(() => import('@/pages/Login'))
 
 const { Sider, Content } = Layout
 
@@ -103,15 +104,21 @@ function AppLayout() {
 
       <Layout style={{ marginLeft: 68, background: '#f0eeff', minHeight: '100vh' }}>
         <Content>
-          <Routes>
-            <Route path="/"           element={<Dashboard />} />
-            <Route path="/tasks"      element={<Tasks />} />
-            <Route path="/rewards"    element={<Rewards />} />
-            <Route path="/season"     element={<SeasonPage />} />
-            <Route path="/sleep"      element={<SleepPage />} />
-            <Route path="/analytics"  element={<AnalyticsPage />} />
-            <Route path="/review"     element={<ReviewPage />} />
-          </Routes>
+          <Suspense fallback={
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80vh' }}>
+              <Spin size="large" />
+            </div>
+          }>
+            <Routes>
+              <Route path="/"           element={<Dashboard />} />
+              <Route path="/tasks"      element={<Tasks />} />
+              <Route path="/rewards"    element={<Rewards />} />
+              <Route path="/season"     element={<SeasonPage />} />
+              <Route path="/sleep"      element={<SleepPage />} />
+              <Route path="/analytics"  element={<AnalyticsPage />} />
+              <Route path="/review"     element={<ReviewPage />} />
+            </Routes>
+          </Suspense>
         </Content>
       </Layout>
     </Layout>
@@ -139,17 +146,23 @@ export default function App() {
       }}
     >
       <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route
-            path="/*"
-            element={
-              <RequireAuth>
-                <AppLayout />
-              </RequireAuth>
-            }
-          />
-        </Routes>
+        <Suspense fallback={
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100svh' }}>
+            <Spin size="large" />
+          </div>
+        }>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/*"
+              element={
+                <RequireAuth>
+                  <AppLayout />
+                </RequireAuth>
+              }
+            />
+          </Routes>
+        </Suspense>
       </Router>
     </ConfigProvider>
   )
