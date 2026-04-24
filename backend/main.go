@@ -75,6 +75,7 @@ func main() {
 		api.GET("/sleep-logs", handler.GetSleepLogs(db))
 		api.PUT("/sleep-logs/:id", handler.UpdateSleepLog(db))
 		api.DELETE("/sleep-logs/:id", handler.DeleteSleepLog(db))
+		api.POST("/sleep-logs/backfill-penalty", handler.BackfillPenaltyExp(db))
 
 		// 能量记录
 		api.POST("/energy-logs", handler.CreateEnergyLog(db))

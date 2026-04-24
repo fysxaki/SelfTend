@@ -37,7 +37,9 @@ func CompleteTask(db *gorm.DB) gin.HandlerFunc {
 
 		// 实时检查今日晚睡惩罚标记，有则本次积分 ×0.8
 		penaltyApplied := TodaySleepPenalty(db)
+		var penaltyAmount float64
 		if penaltyApplied {
+			penaltyAmount = exp * 0.2
 			exp = exp * 0.8
 		}
 
@@ -49,6 +51,14 @@ func CompleteTask(db *gorm.DB) gin.HandlerFunc {
 		}
 		db.Create(&taskLog)
 		updateUserStats(db, exp)
+
+		// 将本次扣分累加到今天的 SleepLog.PenaltyExp，保持显示准确
+		if penaltyAmount > 0 {
+			todayCST := time.Now().In(cst).Format("2006-01-02")
+			db.Model(&model.SleepLog{}).
+				Where("date = ? AND penalized = ?", todayCST, true).
+				UpdateColumn("penalty_exp", gorm.Expr("penalty_exp + ?", penaltyAmount))
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"task_log":       taskLog,
 			"penalty_applied": penaltyApplied,

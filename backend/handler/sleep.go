@@ -235,6 +235,48 @@ func applyRetroactivePenalty(db *gorm.DB) float64 {
 	return penalty
 }
 
+// BackfillPenaltyExp 回填历史 SleepLog 的 penalty_exp
+// 找出所有 penalized=true 且 penalty_exp=0 的记录，按日期查 TaskLog 补算
+func BackfillPenaltyExp(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var logs []model.SleepLog
+		db.Where("penalized = ? AND penalty_exp = 0", true).Find(&logs)
+
+		if len(logs) == 0 {
+			c.JSON(http.StatusOK, gin.H{"message": "没有需要回填的记录", "updated": 0})
+			return
+		}
+
+		updated := 0
+		for _, sl := range logs {
+			// 该日期 CST 00:00 ~ 次日 CST 00:00 对应的 UTC 区间
+			dayStart, err := time.ParseInLocation("2006-01-02", sl.Date, cst)
+			if err != nil {
+				continue
+			}
+			dayEnd := dayStart.Add(24 * time.Hour)
+
+			type sumResult struct{ Total float64 }
+			var r sumResult
+			db.Model(&model.TaskLog{}).
+				Select("COALESCE(SUM(exp_awarded), 0) as total").
+				Where("completed_at >= ? AND completed_at < ?", dayStart.UTC(), dayEnd.UTC()).
+				Scan(&r)
+
+			if r.Total <= 0 {
+				continue
+			}
+
+			// 历史任务积分是满额发的（未被实时惩罚），补算 20%
+			penalty := r.Total * 0.2
+			db.Model(&sl).Update("penalty_exp", penalty)
+			updated++
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "回填完成", "updated": updated})
+	}
+}
+
 // refundStats 退还积分到 UserStats
 func refundStats(db *gorm.DB, amount float64) {
 	if amount <= 0 {
