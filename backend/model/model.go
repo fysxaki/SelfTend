@@ -57,10 +57,11 @@ type SleepLog struct {
 	ID         uint      `json:"id" gorm:"primaryKey"`
 	Date       string    `json:"date"`        // YYYY-MM-DD (CST)
 	SleepTime  string    `json:"sleep_time"`  // HH:MM (CST)，入睡时间
-	WakeTime   string    `json:"wake_time"`   // HH:MM (CST)，起床时间，默认 08:40
+	WakeTime   string    `json:"wake_time"`   // HH:MM (CST)，起床时间，默认 08:52
 	Duration   float64   `json:"duration"`    // 睡眠时长（小时）
-	Penalized  bool      `json:"penalized"`   // 是否触发惩罚
-	PenaltyExp float64   `json:"penalty_exp"` // 被扣除的积分
+	Penalized  bool      `json:"penalized"`   // 是否触发晚睡惩罚
+	PenaltyExp float64   `json:"penalty_exp"` // 晚睡扣除的积分
+	BonusExp   float64   `json:"bonus_exp"`   // 时长奖励/惩罚：正数=奖励，负数=不足6小时惩罚
 	CreatedAt  time.Time `json:"created_at"`
 }
 

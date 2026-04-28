@@ -62,6 +62,7 @@ export default function SleepPage() {
     form.resetFields()
     form.setFieldsValue({
       date: dayjs(),
+      wake_time: dayjs('08:52', 'HH:mm'),
     })
     setModalOpen(true)
   }
@@ -71,6 +72,7 @@ export default function SleepPage() {
     form.setFieldsValue({
       date: dayjs(log.date),
       sleep_time: dayjs(log.sleep_time, 'HH:mm'),
+      wake_time: dayjs(log.wake_time || '08:52', 'HH:mm'),
     })
     setModalOpen(true)
   }
@@ -80,20 +82,25 @@ export default function SleepPage() {
       const values = await form.validateFields()
       setSubmitting(true)
       const sleepTimeStr = (values.sleep_time as dayjs.Dayjs).format('HH:mm')
+      const wakeTimeStr = (values.wake_time as dayjs.Dayjs).format('HH:mm')
 
       if (editingLog) {
-        await updateSleepLog(editingLog.id, { sleep_time: sleepTimeStr })
+        await updateSleepLog(editingLog.id, { sleep_time: sleepTimeStr, wake_time: wakeTimeStr })
         message.success('已更新睡眠记录')
       } else {
         const dateStr = (values.date as dayjs.Dayjs).format('YYYY-MM-DD')
-        const log = await createSleepLog({ date: dateStr, sleep_time: sleepTimeStr })
-        if (log.penalized) {
-          message.warning(
-            `记录成功，但因入睡时间晚于 01:30，扣除今日积分 ${log.penalty_exp.toFixed(1)} 分`,
-            5,
-          )
+        const log = await createSleepLog({ date: dateStr, sleep_time: sleepTimeStr, wake_time: wakeTimeStr })
+        const parts: string[] = []
+        if (log.penalized && log.penalty_exp > 0)
+          parts.push(`🌙 晚睡扣 ${log.penalty_exp.toFixed(1)} 分`)
+        if (log.bonus_exp > 0)
+          parts.push(`⏰ 睡眠奖励 +${log.bonus_exp.toFixed(0)} 分`)
+        if (log.bonus_exp < 0)
+          parts.push(`😴 睡眠不足扣 ${Math.abs(log.bonus_exp).toFixed(1)} 分`)
+        if (parts.length > 0) {
+          message.warning(parts.join('　'), 5)
         } else {
-          message.success('睡眠记录已保存')
+          message.success('睡眠记录已保存 🎉')
         }
       }
 
@@ -159,14 +166,18 @@ export default function SleepPage() {
       },
     },
     {
-      title: '惩罚',
-      key: 'penalty',
-      render: (_: any, record: SleepLog) =>
-        record.penalized ? (
-          <Text type="danger">-{record.penalty_exp.toFixed(1)} 分</Text>
-        ) : (
-          <Text type="success">无</Text>
-        ),
+      title: '奖惩',
+      key: 'bonus',
+      render: (_: any, record: SleepLog) => {
+        const lines: React.ReactNode[] = []
+        if (record.penalized && record.penalty_exp > 0)
+          lines.push(<div key="late" style={{ color: '#ef4444', fontSize: 12 }}>🌙 晚睡 -{record.penalty_exp.toFixed(1)}</div>)
+        if (record.bonus_exp > 0)
+          lines.push(<div key="bonus" style={{ color: '#22c55e', fontSize: 12 }}>⏰ 时长 +{record.bonus_exp.toFixed(0)}</div>)
+        if (record.bonus_exp < 0)
+          lines.push(<div key="short" style={{ color: '#ef4444', fontSize: 12 }}>😴 不足6h -{Math.abs(record.bonus_exp).toFixed(1)}</div>)
+        return lines.length > 0 ? <>{lines}</> : <Text style={{ color: '#22c55e', fontSize: 12 }}>无</Text>
+      },
     },
     {
       title: '操作',
@@ -201,7 +212,7 @@ export default function SleepPage() {
             睡眠记录
           </Title>
           <Text type="secondary" style={{ fontSize: 13 }}>
-            起床时间固定 08:40 · 超过 01:30 入睡扣今日积分 20%
+            超过 01:30 入睡扣20% · &lt;6h 扣20% · 7-8h +12分 · ≥8h +52分
           </Text>
         </div>
         <Button
@@ -213,22 +224,41 @@ export default function SleepPage() {
         </Button>
       </div>
 
-      {/* 今日惩罚提示 */}
-      {todayLog?.penalized && (
+      {/* 今日奖惩提示 */}
+      {todayLog && (todayLog.penalized || todayLog.bonus_exp !== 0) && (
         <Card
           style={{
             marginBottom: 16,
-            background: '#fef3c7',
-            border: '1px solid #fcd34d',
+            background: todayLog.bonus_exp > 0 && !todayLog.penalized ? '#f0fdf4' : '#fef3c7',
+            border: `1px solid ${todayLog.bonus_exp > 0 && !todayLog.penalized ? '#86efac' : '#fcd34d'}`,
           }}
           size="small"
         >
-          <Space>
-            <WarningOutlined style={{ color: '#d97706', fontSize: 16 }} />
-            <Text style={{ color: '#92400e' }}>
-              昨晚 {todayLog.sleep_time} 入睡，超过 01:30 阈值，扣除{' '}
-              <strong>{todayLog.penalty_exp.toFixed(1)}</strong> 积分
-            </Text>
+          <Space direction="vertical" size={2}>
+            {todayLog.penalized && todayLog.penalty_exp > 0 && (
+              <Space>
+                <WarningOutlined style={{ color: '#d97706' }} />
+                <Text style={{ color: '#92400e' }}>
+                  昨晚 {todayLog.sleep_time} 入睡，晚睡扣除 <strong>{todayLog.penalty_exp.toFixed(1)}</strong> 积分
+                </Text>
+              </Space>
+            )}
+            {todayLog.bonus_exp > 0 && (
+              <Space>
+                <span>🎉</span>
+                <Text style={{ color: '#166534' }}>
+                  睡了 {Math.floor(todayLog.duration)}h{Math.round((todayLog.duration % 1) * 60)}m，奖励 <strong>+{todayLog.bonus_exp.toFixed(0)}</strong> 积分
+                </Text>
+              </Space>
+            )}
+            {todayLog.bonus_exp < 0 && (
+              <Space>
+                <WarningOutlined style={{ color: '#d97706' }} />
+                <Text style={{ color: '#92400e' }}>
+                  睡眠不足6小时，额外扣除 <strong>{Math.abs(todayLog.bonus_exp).toFixed(1)}</strong> 积分
+                </Text>
+              </Space>
+            )}
           </Space>
         </Card>
       )}
@@ -275,6 +305,19 @@ export default function SleepPage() {
             label="入睡时间"
             rules={[{ required: true, message: '请选择入睡时间' }]}
             extra="填写你实际入睡的时间（如深夜 00:30 或 01:20）"
+          >
+            <TimePicker
+              style={{ width: '100%' }}
+              format="HH:mm"
+              minuteStep={5}
+              showNow={false}
+            />
+          </Form.Item>
+          <Form.Item
+            name="wake_time"
+            label="起床时间"
+            rules={[{ required: true, message: '请选择起床时间' }]}
+            extra="默认 08:52，可按实际调整"
           >
             <TimePicker
               style={{ width: '100%' }}

@@ -65,6 +65,7 @@ export interface SleepLog {
   duration: number    // 小时
   penalized: boolean
   penalty_exp: number
+  bonus_exp: number   // 正数=时长奖励，负数=不足6小时惩罚
   created_at: string
 }
 

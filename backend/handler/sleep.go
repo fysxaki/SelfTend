@@ -12,8 +12,8 @@ import (
 	"selftend/model"
 )
 
-// 固定起床时间 08:40
-const defaultWakeTime = "08:40"
+// 固定起床时间 08:52
+const defaultWakeTime = "08:52"
 
 // 惩罚阈值：01:30（即超过这个时间入睡则扣分）
 const penaltyThresholdHour = 1
@@ -22,6 +22,7 @@ const penaltyThresholdMin = 30
 type CreateSleepLogReq struct {
 	Date      string `json:"date"`       // YYYY-MM-DD，不填则用今天
 	SleepTime string `json:"sleep_time"` // HH:MM，必填
+	WakeTime  string `json:"wake_time"`  // HH:MM，不填则用默认值
 }
 
 // CreateSleepLog 创建睡眠记录，并自动计算时长 + 触发惩罚
@@ -50,7 +51,12 @@ func CreateSleepLog(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		duration, err := calcSleepDuration(date, req.SleepTime, defaultWakeTime)
+		wakeTime := req.WakeTime
+		if wakeTime == "" {
+			wakeTime = defaultWakeTime
+		}
+
+		duration, err := calcSleepDuration(date, req.SleepTime, wakeTime)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("时间格式错误: %v", err)})
 			return
@@ -59,15 +65,18 @@ func CreateSleepLog(db *gorm.DB) gin.HandlerFunc {
 		log := model.SleepLog{
 			Date:      date,
 			SleepTime: req.SleepTime,
-			WakeTime:  defaultWakeTime,
+			WakeTime:  wakeTime,
 			Duration:  duration,
 		}
 
-		// 检查是否触发惩罚：同时补扣今天已完成任务的20%
+		// 晚睡惩罚：补扣今天已完成任务的20%
 		log.Penalized = isSleepPenalized(req.SleepTime)
 		if log.Penalized {
 			log.PenaltyExp = applyRetroactivePenalty(db)
 		}
+
+		// 时长奖惩：<6h 扣20%，7-8h +12分，>=8h +52分
+		log.BonusExp = applyDurationBonus(db, duration)
 
 		db.Create(&log)
 		c.JSON(http.StatusOK, log)
@@ -114,27 +123,39 @@ func UpdateSleepLog(db *gorm.DB) gin.HandlerFunc {
 		if sleepTime == "" {
 			sleepTime = log.SleepTime
 		}
+		wakeTime := req.WakeTime
+		if wakeTime == "" {
+			wakeTime = log.WakeTime
+		}
 
-		duration, err := calcSleepDuration(log.Date, sleepTime, defaultWakeTime)
+		duration, err := calcSleepDuration(log.Date, sleepTime, wakeTime)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("时间格式错误: %v", err)})
 			return
 		}
 
-		// 先退还上次记录的补扣金额（如果有）
+		// 退还旧的晚睡补扣
 		if log.Penalized && log.PenaltyExp > 0 {
 			refundStats(db, log.PenaltyExp)
 		}
+		// 退还旧的时长奖惩（正数=曾加分需扣回，负数=曾扣分需补回）
+		if log.BonusExp != 0 {
+			refundStats(db, log.BonusExp)
+		}
 
-		// 重新计算惩罚
+		// 重新计算晚睡惩罚
 		log.SleepTime = sleepTime
-		log.WakeTime = defaultWakeTime
+		log.WakeTime = wakeTime
 		log.Duration = duration
 		log.Penalized = isSleepPenalized(sleepTime)
 		log.PenaltyExp = 0
 		if log.Penalized {
 			log.PenaltyExp = applyRetroactivePenalty(db)
 		}
+
+		// 重新计算时长奖惩
+		log.BonusExp = applyDurationBonus(db, duration)
+
 		db.Save(&log)
 
 		c.JSON(http.StatusOK, log)
@@ -151,9 +172,13 @@ func DeleteSleepLog(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 退还补扣的积分
+		// 退还晚睡补扣
 		if log.Penalized && log.PenaltyExp > 0 {
 			refundStats(db, log.PenaltyExp)
+		}
+		// 退还时长奖惩
+		if log.BonusExp != 0 {
+			refundStats(db, log.BonusExp)
 		}
 
 		db.Delete(&log)
@@ -274,6 +299,57 @@ func BackfillPenaltyExp(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "回填完成", "updated": updated})
+	}
+}
+
+// applyDurationBonus 根据睡眠时长发放奖励或惩罚，返回净变化量（正=加分，负=扣分）
+// <6h: 扣今日任务积分20%；6-7h: 无；7-8h: +12分；>=8h: +52分
+func applyDurationBonus(db *gorm.DB, duration float64) float64 {
+	var stats model.UserStats
+	db.First(&stats)
+
+	switch {
+	case duration < 6:
+		// 补扣今日任务积分20%
+		todayStart, todayEnd := todayRangeUTC()
+		type sumResult struct{ Total float64 }
+		var r sumResult
+		db.Model(&model.TaskLog{}).
+			Select("COALESCE(SUM(exp_awarded), 0) as total").
+			Where("completed_at >= ? AND completed_at < ?", todayStart, todayEnd).
+			Scan(&r)
+		if r.Total <= 0 {
+			return 0
+		}
+		penalty := r.Total * 0.2
+		stats.SpendableExp -= penalty
+		stats.TotalExp -= penalty
+		if stats.SpendableExp < 0 {
+			stats.SpendableExp = 0
+		}
+		if stats.TotalExp < 0 {
+			stats.TotalExp = 0
+		}
+		stats.Level = calcLevel(stats.TotalExp)
+		db.Save(&stats)
+		return -penalty
+
+	case duration >= 7 && duration < 8:
+		stats.SpendableExp += 12
+		stats.TotalExp += 12
+		stats.Level = calcLevel(stats.TotalExp)
+		db.Save(&stats)
+		return 12
+
+	case duration >= 8:
+		stats.SpendableExp += 52
+		stats.TotalExp += 52
+		stats.Level = calcLevel(stats.TotalExp)
+		db.Save(&stats)
+		return 52
+
+	default:
+		return 0 // 6h~7h：不奖不惩
 	}
 }
 

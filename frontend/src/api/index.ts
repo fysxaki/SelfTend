@@ -81,11 +81,11 @@ export const redeemPrize = (id: number) =>
   )
 
 // SleepLogs
-export const createSleepLog = (data: { date?: string; sleep_time: string }) =>
+export const createSleepLog = (data: { date?: string; sleep_time: string; wake_time?: string }) =>
   http.post<SleepLog, SleepLog>('/sleep-logs', data)
 export const getSleepLogs = (params?: { start_date?: string; end_date?: string }) =>
   http.get<SleepLog[], SleepLog[]>('/sleep-logs', { params })
-export const updateSleepLog = (id: number, data: { sleep_time: string }) =>
+export const updateSleepLog = (id: number, data: { sleep_time: string; wake_time?: string }) =>
   http.put<SleepLog, SleepLog>(`/sleep-logs/${id}`, data)
 export const deleteSleepLog = (id: number) => http.delete(`/sleep-logs/${id}`)
 
