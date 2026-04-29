@@ -110,8 +110,8 @@ export default function SleepPage() {
 
       setModalOpen(false)
       await Promise.all([loadLogs(), fetchStats()])
-    } catch (e: any) {
-      const msg = e?.response?.data?.error || '操作失败'
+    } catch (e) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error || '操作失败'
       message.error(msg)
     } finally {
       setSubmitting(false)
@@ -172,7 +172,7 @@ export default function SleepPage() {
     {
       title: '奖惩',
       key: 'bonus',
-      render: (_: any, record: SleepLog) => {
+      render: (_: unknown, record: SleepLog) => {
         const lines: React.ReactNode[] = []
         if (record.penalized) {
           if (record.penalty_exp > 0)
@@ -190,7 +190,7 @@ export default function SleepPage() {
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: SleepLog) => (
+      render: (_: unknown, record: SleepLog) => (
         <Space>
           <Button
             size="small"

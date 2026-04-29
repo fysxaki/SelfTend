@@ -6,9 +6,10 @@ import {
   SendOutlined,
 } from '@ant-design/icons'
 import { Button, Card, Input, Segmented, Space, Tooltip, Typography, message } from 'antd'
+import ReactMarkdown from 'react-markdown'
 import dayjs from 'dayjs'
 import { useEffect, useRef, useState } from 'react'
-import { chat, getReviews, saveReview } from '@/api'
+import { getReviews, saveReview } from '@/api'
 import type { ChatMessage, ReviewLog } from '@/types'
 
 const { Text, Paragraph } = Typography
@@ -129,8 +130,8 @@ export default function ReviewPage() {
       if (reply.includes('【今日总结】')) {
         message.info('AI 已生成今日总结，点击「保存总结」存入记录', 4)
       }
-    } catch (e: any) {
-      const errMsg = e?.message || '请求失败'
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : '请求失败'
       message.error(errMsg, 6)
       setMessages((prev) => {
         const next = [...prev]
@@ -300,12 +301,7 @@ export default function ReviewPage() {
 function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === 'user'
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: isUser ? 'flex-end' : 'flex-start',
-      }}
-    >
+    <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}>
       <div
         style={{
           maxWidth: '80%',
@@ -316,11 +312,32 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           border: isUser ? 'none' : '1.5px solid #e4deff',
           fontSize: 14,
           lineHeight: 1.6,
-          whiteSpace: 'pre-wrap',
           boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
         }}
       >
-        {msg.content}
+        {isUser ? (
+          <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
+        ) : (
+          <ReactMarkdown
+            components={{
+              p: ({ children }) => <p style={{ margin: '4px 0' }}>{children}</p>,
+              ul: ({ children }) => <ul style={{ margin: '4px 0', paddingLeft: 20 }}>{children}</ul>,
+              ol: ({ children }) => <ol style={{ margin: '4px 0', paddingLeft: 20 }}>{children}</ol>,
+              li: ({ children }) => <li style={{ margin: '2px 0' }}>{children}</li>,
+              strong: ({ children }) => <strong style={{ color: '#5b21b6' }}>{children}</strong>,
+              h3: ({ children }) => <h3 style={{ margin: '8px 0 4px', fontSize: 15 }}>{children}</h3>,
+              h4: ({ children }) => <h4 style={{ margin: '6px 0 2px', fontSize: 14 }}>{children}</h4>,
+              code: ({ children }) => (
+                <code style={{ background: '#f0eeff', borderRadius: 4, padding: '1px 5px', fontSize: 13 }}>
+                  {children}
+                </code>
+              ),
+              hr: () => <hr style={{ border: 'none', borderTop: '1px solid #e4deff', margin: '8px 0' }} />,
+            }}
+          >
+            {msg.content}
+          </ReactMarkdown>
+        )}
       </div>
     </div>
   )

@@ -51,6 +51,7 @@ function AppLayout() {
   const { init, initialized } = useAppStore()
 
   // 启动时加载赛季和用户数据，消除白屏
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { init() }, [])
 
   if (!initialized) {

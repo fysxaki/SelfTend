@@ -29,6 +29,7 @@ export default function Tasks() {
     setLoading(false)
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchTasks() }, [currentSeason])
 
   const openCreate = () => {

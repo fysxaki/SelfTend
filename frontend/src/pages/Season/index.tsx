@@ -32,6 +32,7 @@ export default function SeasonPage() {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchSeasons() }, [])
 
   const openCreate = () => {

@@ -62,6 +62,7 @@ export default function Dashboard() {
   useEffect(() => {
     setLoading(true)
     Promise.all([loadTasks(), loadEnergy()]).finally(() => setLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSeason])
 
   const handleComplete = async (task: Task, expOverride?: number) => {
@@ -70,7 +71,7 @@ export default function Dashboard() {
     return res
   }
 
-  const handleUndo = async (_task: Task) => {
+  const handleUndo = async () => {
     await loadTasks()
   }
 
