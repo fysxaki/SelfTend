@@ -5,7 +5,7 @@ import {
   SaveOutlined,
   SendOutlined,
 } from '@ant-design/icons'
-import { Button, Card, Input, Space, Tooltip, Typography, message } from 'antd'
+import { Button, Card, Input, Segmented, Space, Tooltip, Typography, message } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useRef, useState } from 'react'
 import { chat, getReviews, saveReview } from '@/api'
@@ -44,6 +44,7 @@ export default function ReviewPage() {
   const [saving, setSaving] = useState(false)
   const [history, setHistory] = useState<ReviewLog[]>([])
   const [showHistory, setShowHistory] = useState(false)
+  const [model, setModel] = useState<string>('deepseek-v4-flash')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -72,7 +73,7 @@ export default function ReviewPage() {
     try {
       // 只把非初始问候的消息发给后端
       const toSend = newMessages.filter((_, i) => i > 0 || newMessages[0].role === 'user')
-      const { reply } = await chat(toSend)
+      const { reply } = await chat(toSend, model)
       const finalMessages = [...newMessages, { role: 'assistant' as const, content: reply }]
       setMessages(finalMessages)
       saveLocalMessages(today, finalMessages)
@@ -135,6 +136,15 @@ export default function ReviewPage() {
           </Text>
         </div>
         <Space>
+          <Segmented
+            size="small"
+            value={model}
+            onChange={(v) => setModel(v as string)}
+            options={[
+              { label: 'Flash', value: 'deepseek-v4-flash' },
+              { label: 'Pro', value: 'deepseek-v4-pro' },
+            ]}
+          />
           <Button
             size="small"
             onClick={() => setShowHistory(!showHistory)}

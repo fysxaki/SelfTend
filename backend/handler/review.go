@@ -17,7 +17,7 @@ import (
 )
 
 const deepseekEndpoint = "https://api.deepseek.com/chat/completions"
-const deepseekModel = "deepseek-chat"
+const deepseekDefaultModel = "deepseek-v4-flash"
 
 // ── System Prompt ──────────────────────────────────────────────────────────
 
@@ -74,6 +74,7 @@ type DSResponse struct {
 
 type ChatReq struct {
 	Messages []DSMessage `json:"messages"` // 前端维护完整对话历史
+	Model    string      `json:"model"`    // 可选，默认 deepseek-v4-flash
 }
 
 // Chat 处理单轮对话，返回 AI 回复
@@ -102,7 +103,11 @@ func Chat(db *gorm.DB) gin.HandlerFunc {
 		messages := []DSMessage{{Role: "system", Content: systemPrompt}}
 		messages = append(messages, req.Messages...)
 
-		reply, err := callDeepSeek(apiKey, messages)
+		model := req.Model
+		if model == "" {
+			model = deepseekDefaultModel
+		}
+		reply, err := callDeepSeek(apiKey, model, messages)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -229,9 +234,9 @@ func getConfig(db *gorm.DB, key, fallback string) string {
 }
 
 // callDeepSeek 调用 DeepSeek API
-func callDeepSeek(apiKey string, messages []DSMessage) (string, error) {
+func callDeepSeek(apiKey string, model string, messages []DSMessage) (string, error) {
 	reqBody := DSRequest{
-		Model:       deepseekModel,
+		Model:       model,
 		Messages:    messages,
 		Temperature: 0.8,
 		MaxTokens:   1024,
