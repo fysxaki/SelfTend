@@ -14,8 +14,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import type { TooltipProps } from 'recharts'
-import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent'
 import { getAnalytics } from '@/api'
 import type { AnalyticsItem } from '@/types'
 
@@ -25,8 +23,21 @@ const ENERGY_COLOR = '#a78bfa'
 const SLEEP_COLOR = '#38bdf8'
 const PENALTY_COLOR = '#f87171'
 
+interface TooltipEntry {
+  name?: string
+  value?: number | string
+  color?: string
+  payload?: Record<string, number>
+}
+
+interface ChartTooltipProps {
+  active?: boolean
+  payload?: TooltipEntry[]
+  label?: string
+}
+
 // 自定义 Tooltip（折线图）
-const LineTooltip = ({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
+const LineTooltip = ({ active, payload, label }: ChartTooltipProps) => {
   if (!active || !payload?.length) return null
   return (
     <div
@@ -51,7 +62,7 @@ const LineTooltip = ({ active, payload, label }: TooltipProps<ValueType, NameTyp
 }
 
 // 自定义 Tooltip（散点图）
-const ScatterTooltip = ({ active, payload }: TooltipProps<ValueType, NameType>) => {
+const ScatterTooltip = ({ active, payload }: ChartTooltipProps) => {
   if (!active || !payload?.length) return null
   const d = payload[0]?.payload
   return (
