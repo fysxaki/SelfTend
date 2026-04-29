@@ -104,7 +104,7 @@ export const getAnalytics = (params?: { start_date?: string; end_date?: string }
 
 // Review
 export const chat = (messages: ChatMessage[], model?: string) =>
-  http.post<{ reply: string }, { reply: string }>('/review/chat', { messages, model })
+  http.post<{ reply: string }, { reply: string }>('/review/chat', { messages, model }, { timeout: 60000 })
 export const saveReview = (summary: string) =>
   http.post<ReviewLog, ReviewLog>('/review/save', { summary })
 export const getReviews = (limit = 30) =>

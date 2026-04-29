@@ -7,7 +7,7 @@ import {
   ScheduleOutlined,
   TrophyOutlined,
 } from '@ant-design/icons'
-import { ConfigProvider, Spin, Layout, theme } from 'antd'
+import { App as AntdApp, ConfigProvider, Spin, Layout, theme } from 'antd'
 import { lazy, Suspense, useEffect } from 'react'
 import {
   NavLink,
@@ -145,25 +145,27 @@ export default function App() {
         },
       }}
     >
-      <Router>
-        <Suspense fallback={
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100svh' }}>
-            <Spin size="large" />
-          </div>
-        }>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route
-              path="/*"
-              element={
-                <RequireAuth>
-                  <AppLayout />
-                </RequireAuth>
-              }
-            />
-          </Routes>
-        </Suspense>
-      </Router>
+      <AntdApp>
+        <Router>
+          <Suspense fallback={
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100svh' }}>
+              <Spin size="large" />
+            </div>
+          }>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route
+                path="/*"
+                element={
+                  <RequireAuth>
+                    <AppLayout />
+                  </RequireAuth>
+                }
+              />
+            </Routes>
+          </Suspense>
+        </Router>
+      </AntdApp>
     </ConfigProvider>
   )
 }

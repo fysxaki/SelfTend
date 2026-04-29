@@ -132,7 +132,7 @@ export default function Dashboard() {
               Lv.{levelInfo.level}
             </div>
             <div className="stat-card-progress">
-              <Progress percent={Math.floor((levelInfo.currentExp / levelInfo.nextLevelExp) * 100)} size="small" showInfo={false} strokeColor="#7c3aed" trailColor="#ede9fe" style={{ marginTop: 8 }} />
+              <Progress percent={Math.floor((levelInfo.currentExp / levelInfo.nextLevelExp) * 100)} size="small" showInfo={false} strokeColor="#7c3aed" railColor="#ede9fe" style={{ marginTop: 8 }} />
               <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>{formatExp(levelInfo.currentExp)} / {formatExp(levelInfo.nextLevelExp)} EXP</div>
             </div>
           </div>

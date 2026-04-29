@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -59,11 +61,23 @@ type DSRequest struct {
 	Messages    []DSMessage `json:"messages"`
 	Temperature float64     `json:"temperature"`
 	MaxTokens   int         `json:"max_tokens"`
+	Stream      bool        `json:"stream"`
 }
 
 type DSResponse struct {
 	Choices []struct {
 		Message DSMessage `json:"message"`
+	} `json:"choices"`
+	Error *struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+type DSStreamChunk struct {
+	Choices []struct {
+		Delta struct {
+			Content string `json:"content"`
+		} `json:"delta"`
 	} `json:"choices"`
 	Error *struct {
 		Message string `json:"message"`
@@ -77,7 +91,7 @@ type ChatReq struct {
 	Model    string      `json:"model"`    // 可选，默认 deepseek-v4-flash
 }
 
-// Chat 处理单轮对话，返回 AI 回复
+// Chat 处理单轮对话，SSE 流式返回 AI 回复
 func Chat(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		apiKey := os.Getenv("DEEPSEEK_API_KEY")
@@ -92,14 +106,11 @@ func Chat(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 读取背景和目标（全部从数据库读，代码里不存隐私）
 		background := getConfig(db, "background", "（暂未设置）")
 		goals := getConfig(db, "goals", defaultGoals)
-		// 构建今日上下文
 		contextStr := buildContext(db)
 		systemPrompt := fmt.Sprintf(systemPromptBase, background, goals, contextStr)
 
-		// 拼装消息：system + 历史对话
 		messages := []DSMessage{{Role: "system", Content: systemPrompt}}
 		messages = append(messages, req.Messages...)
 
@@ -107,13 +118,51 @@ func Chat(db *gorm.DB) gin.HandlerFunc {
 		if model == "" {
 			model = deepseekDefaultModel
 		}
-		reply, err := callDeepSeek(apiKey, model, messages)
+
+		dsResp, err := startDeepSeekStream(apiKey, model, messages)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+		defer dsResp.Close()
 
-		c.JSON(http.StatusOK, gin.H{"reply": reply})
+		c.Header("Content-Type", "text/event-stream")
+		c.Header("Cache-Control", "no-cache")
+		c.Header("X-Accel-Buffering", "no")
+
+		scanner := bufio.NewScanner(dsResp)
+		c.Stream(func(w io.Writer) bool {
+			if !scanner.Scan() {
+				return false
+			}
+			line := scanner.Text()
+			if !strings.HasPrefix(line, "data: ") {
+				return true
+			}
+			data := strings.TrimPrefix(line, "data: ")
+			if data == "[DONE]" {
+				fmt.Fprintf(w, "data: [DONE]\n\n")
+				return false
+			}
+			var chunk DSStreamChunk
+			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+				return true
+			}
+			if chunk.Error != nil {
+				fmt.Fprintf(w, "data: {\"error\":\"%s\"}\n\n", chunk.Error.Message)
+				return false
+			}
+			if len(chunk.Choices) == 0 {
+				return true
+			}
+			content := chunk.Choices[0].Delta.Content
+			if content == "" {
+				return true
+			}
+			payload, _ := json.Marshal(map[string]string{"token": content})
+			fmt.Fprintf(w, "data: %s\n\n", payload)
+			return true
+		})
 	}
 }
 
@@ -233,41 +282,33 @@ func getConfig(db *gorm.DB, key, fallback string) string {
 	return cfg.Value
 }
 
-// callDeepSeek 调用 DeepSeek API
-func callDeepSeek(apiKey string, model string, messages []DSMessage) (string, error) {
+// startDeepSeekStream 发起流式请求，返回 response body（调用方负责 Close）
+func startDeepSeekStream(apiKey string, model string, messages []DSMessage) (io.ReadCloser, error) {
 	reqBody := DSRequest{
 		Model:       model,
 		Messages:    messages,
 		Temperature: 0.8,
 		MaxTokens:   1024,
+		Stream:      true,
 	}
 
 	body, _ := json.Marshal(reqBody)
 	httpReq, err := http.NewRequest("POST", deepseekEndpoint, bytes.NewBuffer(body))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		return "", fmt.Errorf("请求 DeepSeek 失败: %v", err)
+		return nil, fmt.Errorf("请求 DeepSeek 失败: %v", err)
 	}
-	defer resp.Body.Close()
-
-	respBody, _ := io.ReadAll(resp.Body)
-	var dsResp DSResponse
-	if err := json.Unmarshal(respBody, &dsResp); err != nil {
-		return "", fmt.Errorf("解析响应失败: %v", err)
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, fmt.Errorf("DeepSeek HTTP %d: %s", resp.StatusCode, string(b))
 	}
-	if dsResp.Error != nil {
-		return "", fmt.Errorf("DeepSeek 错误: %s", dsResp.Error.Message)
-	}
-	if len(dsResp.Choices) == 0 {
-		return "", fmt.Errorf("DeepSeek 返回空响应")
-	}
-
-	return dsResp.Choices[0].Message.Content, nil
+	return resp.Body, nil
 }

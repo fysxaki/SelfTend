@@ -294,7 +294,7 @@ export default function SleepPage() {
         confirmLoading={submitting}
         okText={editingLog ? '保存' : '记录'}
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           {!editingLog && (

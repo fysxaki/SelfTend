@@ -70,22 +70,73 @@ export default function ReviewPage() {
     setInput('')
     setLoading(true)
 
+    // 先插入一条空的 assistant 消息，流式追加内容
+    const assistantIndex = newMessages.length
+    setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
+
     try {
-      // 只把非初始问候的消息发给后端
-      const toSend = newMessages.filter((_, i) => i > 0 || newMessages[0].role === 'user')
-      const { reply } = await chat(toSend, model)
+      const toSend = newMessages.filter(
+        (m, i) => (i > 0 || m.role === 'user') && !m.content.startsWith('⚠️'),
+      )
+
+      const code = localStorage.getItem('selftend_code')
+      const resp = await fetch('/api/review/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(code ? { 'X-Access-Code': code } : {}),
+        },
+        body: JSON.stringify({ messages: toSend, model }),
+        signal: AbortSignal.timeout(60000),
+      })
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: '请求失败' }))
+        throw new Error(err.error || '请求失败')
+      }
+
+      const reader = resp.body!.getReader()
+      const decoder = new TextDecoder()
+      let reply = ''
+      let buf = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const data = line.slice(6)
+          if (data === '[DONE]') break
+          const chunk = JSON.parse(data)
+          if (chunk.error) throw new Error(chunk.error)
+          if (chunk.token) {
+            reply += chunk.token
+            setMessages((prev) => {
+              const next = [...prev]
+              next[assistantIndex + 1] = { role: 'assistant', content: reply }
+              return next
+            })
+          }
+        }
+      }
+
       const finalMessages = [...newMessages, { role: 'assistant' as const, content: reply }]
-      setMessages(finalMessages)
       saveLocalMessages(today, finalMessages)
 
-      // 检测是否包含总结，自动提示保存
       if (reply.includes('【今日总结】')) {
         message.info('AI 已生成今日总结，点击「保存总结」存入记录', 4)
       }
     } catch (e: any) {
-      const errMsg = e?.response?.data?.error || '请求失败，请检查 API Key 配置'
-      message.error(errMsg)
-      setMessages([...newMessages, { role: 'assistant', content: `⚠️ ${errMsg}` }])
+      const errMsg = e?.message || '请求失败'
+      message.error(errMsg, 6)
+      setMessages((prev) => {
+        const next = [...prev]
+        next[assistantIndex + 1] = { role: 'assistant', content: `⚠️ ${errMsg}` }
+        return next
+      })
     } finally {
       setLoading(false)
     }
