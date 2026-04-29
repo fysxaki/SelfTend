@@ -62,7 +62,7 @@ export default function SleepPage() {
     form.resetFields()
     form.setFieldsValue({
       date: dayjs(),
-      wake_time: dayjs('08:52', 'HH:mm'),
+      wake_time: dayjs('08:49', 'HH:mm'),
     })
     setModalOpen(true)
   }
@@ -91,8 +91,12 @@ export default function SleepPage() {
         const dateStr = (values.date as dayjs.Dayjs).format('YYYY-MM-DD')
         const log = await createSleepLog({ date: dateStr, sleep_time: sleepTimeStr, wake_time: wakeTimeStr })
         const parts: string[] = []
-        if (log.penalized && log.penalty_exp > 0)
-          parts.push(`🌙 晚睡扣 ${log.penalty_exp.toFixed(1)} 分`)
+        if (log.penalized) {
+          if (log.penalty_exp > 0)
+            parts.push(`🌙 晚睡扣 ${log.penalty_exp.toFixed(1)} 分`)
+          else
+            parts.push(`🌙 晚睡惩罚已激活（今日后续任务将扣20%）`)
+        }
         if (log.bonus_exp > 0)
           parts.push(`⏰ 睡眠奖励 +${log.bonus_exp.toFixed(0)} 分`)
         if (log.bonus_exp < 0)
@@ -170,8 +174,12 @@ export default function SleepPage() {
       key: 'bonus',
       render: (_: any, record: SleepLog) => {
         const lines: React.ReactNode[] = []
-        if (record.penalized && record.penalty_exp > 0)
-          lines.push(<div key="late" style={{ color: '#ef4444', fontSize: 12 }}>🌙 晚睡 -{record.penalty_exp.toFixed(1)}</div>)
+        if (record.penalized) {
+          if (record.penalty_exp > 0)
+            lines.push(<div key="late" style={{ color: '#ef4444', fontSize: 12 }}>🌙 晚睡 -{record.penalty_exp.toFixed(1)}</div>)
+          else
+            lines.push(<div key="late-active" style={{ color: '#f59e0b', fontSize: 12 }}>🌙 晚睡惩罚中</div>)
+        }
         if (record.bonus_exp > 0)
           lines.push(<div key="bonus" style={{ color: '#22c55e', fontSize: 12 }}>⏰ 时长 +{record.bonus_exp.toFixed(0)}</div>)
         if (record.bonus_exp < 0)
@@ -235,11 +243,13 @@ export default function SleepPage() {
           size="small"
         >
           <Space direction="vertical" size={2}>
-            {todayLog.penalized && todayLog.penalty_exp > 0 && (
+            {todayLog.penalized && (
               <Space>
                 <WarningOutlined style={{ color: '#d97706' }} />
                 <Text style={{ color: '#92400e' }}>
-                  昨晚 {todayLog.sleep_time} 入睡，晚睡扣除 <strong>{todayLog.penalty_exp.toFixed(1)}</strong> 积分
+                  昨晚 {todayLog.sleep_time} 入睡，晚睡{todayLog.penalty_exp > 0
+                    ? <>扣除 <strong>{todayLog.penalty_exp.toFixed(1)}</strong> 积分</>
+                    : '惩罚已激活，后续任务将扣20%'}
                 </Text>
               </Space>
             )}
@@ -317,7 +327,7 @@ export default function SleepPage() {
             name="wake_time"
             label="起床时间"
             rules={[{ required: true, message: '请选择起床时间' }]}
-            extra="默认 08:52，可按实际调整"
+            extra="默认 08:49，可按实际调整"
           >
             <TimePicker
               style={{ width: '100%' }}
