@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -14,6 +15,9 @@ import (
 )
 
 func main() {
+	// 本地开发自动加载 .env，生产环境文件不存在时静默跳过
+	_ = godotenv.Load()
+
 	db, err := gorm.Open(sqlite.Open("data.db"), &gorm.Config{})
 	if err != nil {
 		log.Fatal("failed to connect database:", err)

@@ -3,6 +3,7 @@ backend/data.db
 
 # Go 编译产物
 backend/selftend
+backend/.env
 
 # 前端构建产物
 frontend/dist
