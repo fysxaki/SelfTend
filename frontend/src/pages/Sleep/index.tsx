@@ -90,21 +90,25 @@ export default function SleepPage() {
       } else {
         const dateStr = (values.date as dayjs.Dayjs).format('YYYY-MM-DD')
         const log = await createSleepLog({ date: dateStr, sleep_time: sleepTimeStr, wake_time: wakeTimeStr })
+        const isToday = dateStr === dayjs().format('YYYY-MM-DD')
+        const dateLabel = isToday ? '今日' : `${dayjs(dateStr).format('MM/DD')}`
         const parts: string[] = []
         if (log.penalized) {
           if (log.penalty_exp > 0)
             parts.push(`🌙 晚睡扣 ${log.penalty_exp.toFixed(1)} 分`)
-          else
+          else if (isToday)
             parts.push(`🌙 晚睡惩罚已激活（今日后续任务将扣20%）`)
+          else
+            parts.push(`🌙 ${dateLabel} 晚睡已标记`)
         }
         if (log.bonus_exp > 0)
-          parts.push(`⏰ 睡眠奖励 +${log.bonus_exp.toFixed(0)} 分`)
+          parts.push(`⏰ ${dateLabel}睡眠奖励 +${log.bonus_exp.toFixed(0)} 分`)
         if (log.bonus_exp < 0)
-          parts.push(`😴 睡眠不足扣 ${Math.abs(log.bonus_exp).toFixed(1)} 分`)
+          parts.push(`😴 ${dateLabel}睡眠不足扣 ${Math.abs(log.bonus_exp).toFixed(1)} 分`)
         if (parts.length > 0) {
           message.warning(parts.join('　'), 5)
         } else {
-          message.success('睡眠记录已保存 🎉')
+          message.success(`${dateLabel}睡眠记录已保存 🎉`)
         }
       }
 
@@ -319,7 +323,7 @@ export default function SleepPage() {
             <TimePicker
               style={{ width: '100%' }}
               format="HH:mm"
-              minuteStep={5}
+              minuteStep={1}
               showNow={false}
             />
           </Form.Item>
@@ -327,12 +331,12 @@ export default function SleepPage() {
             name="wake_time"
             label="起床时间"
             rules={[{ required: true, message: '请选择起床时间' }]}
-            extra="默认 08:49，可按实际调整"
+            extra="默认 08:52，可按实际调整"
           >
             <TimePicker
               style={{ width: '100%' }}
               format="HH:mm"
-              minuteStep={5}
+              minuteStep={1}
               showNow={false}
             />
           </Form.Item>

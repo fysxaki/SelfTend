@@ -69,14 +69,14 @@ func CreateSleepLog(db *gorm.DB) gin.HandlerFunc {
 			Duration:  duration,
 		}
 
-		// 晚睡惩罚：补扣今天已完成任务的20%
+		// 晚睡惩罚：补扣该日已完成任务的20%
 		log.Penalized = isSleepPenalized(req.SleepTime)
 		if log.Penalized {
-			log.PenaltyExp = applyRetroactivePenalty(db)
+			log.PenaltyExp = applyRetroactivePenalty(db, date)
 		}
 
-		// 时长奖惩：<6h 扣20%，7-8h +12分，>=8h +52分
-		log.BonusExp = applyDurationBonus(db, duration)
+		// 时长奖惩：<6h 扣该日任务积分20%，7-8h +12分，>=8h +52分
+		log.BonusExp = applyDurationBonus(db, duration, date)
 
 		db.Create(&log)
 		c.JSON(http.StatusOK, log)
@@ -150,11 +150,11 @@ func UpdateSleepLog(db *gorm.DB) gin.HandlerFunc {
 		log.Penalized = isSleepPenalized(sleepTime)
 		log.PenaltyExp = 0
 		if log.Penalized {
-			log.PenaltyExp = applyRetroactivePenalty(db)
+			log.PenaltyExp = applyRetroactivePenalty(db, log.Date)
 		}
 
 		// 重新计算时长奖惩
-		log.BonusExp = applyDurationBonus(db, duration)
+		log.BonusExp = applyDurationBonus(db, duration, log.Date)
 
 		db.Save(&log)
 
@@ -232,14 +232,18 @@ func TodaySleepPenalty(db *gorm.DB) bool {
 	return db.Where("date = ? AND penalized = ?", todayCST, true).First(&sl).Error == nil
 }
 
-// applyRetroactivePenalty 补扣今天已完成任务积分的20%，返回扣除金额
-func applyRetroactivePenalty(db *gorm.DB) float64 {
-	todayStart, todayEnd := todayRangeUTC()
+// applyRetroactivePenalty 补扣指定日期已完成任务积分的20%，返回扣除金额
+func applyRetroactivePenalty(db *gorm.DB, date string) float64 {
+	dayStart, err := time.ParseInLocation("2006-01-02", date, cst)
+	if err != nil {
+		return 0
+	}
+	dayEnd := dayStart.Add(24 * time.Hour)
 	type sumResult struct{ Total float64 }
 	var r sumResult
 	db.Model(&model.TaskLog{}).
 		Select("COALESCE(SUM(exp_awarded), 0) as total").
-		Where("completed_at >= ? AND completed_at < ?", todayStart, todayEnd).
+		Where("completed_at >= ? AND completed_at < ?", dayStart.UTC(), dayEnd.UTC()).
 		Scan(&r)
 	if r.Total <= 0 {
 		return 0
@@ -303,20 +307,24 @@ func BackfillPenaltyExp(db *gorm.DB) gin.HandlerFunc {
 }
 
 // applyDurationBonus 根据睡眠时长发放奖励或惩罚，返回净变化量（正=加分，负=扣分）
-// <6h: 扣今日任务积分20%；6-7h: 无；7-8h: +12分；>=8h: +52分
-func applyDurationBonus(db *gorm.DB, duration float64) float64 {
+// <6h: 扣该日任务积分20%；6-7h: 无；7-8h: +12分；>=8h: +52分
+func applyDurationBonus(db *gorm.DB, duration float64, date string) float64 {
 	var stats model.UserStats
 	db.First(&stats)
 
 	switch {
 	case duration < 6:
-		// 补扣今日任务积分20%
-		todayStart, todayEnd := todayRangeUTC()
+		// 补扣该日任务积分20%
+		dayStart, err := time.ParseInLocation("2006-01-02", date, cst)
+		if err != nil {
+			return 0
+		}
+		dayEnd := dayStart.Add(24 * time.Hour)
 		type sumResult struct{ Total float64 }
 		var r sumResult
 		db.Model(&model.TaskLog{}).
 			Select("COALESCE(SUM(exp_awarded), 0) as total").
-			Where("completed_at >= ? AND completed_at < ?", todayStart, todayEnd).
+			Where("completed_at >= ? AND completed_at < ?", dayStart.UTC(), dayEnd.UTC()).
 			Scan(&r)
 		if r.Total <= 0 {
 			return 0
