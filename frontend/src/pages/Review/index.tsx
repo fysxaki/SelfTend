@@ -5,7 +5,7 @@ import {
   SaveOutlined,
   SendOutlined,
 } from '@ant-design/icons'
-import { Button, Card, Input, Segmented, Space, Tooltip, Typography, message } from 'antd'
+import { Button, Card, Input, Space, Tooltip, Typography, message } from 'antd'
 import ReactMarkdown from 'react-markdown'
 import dayjs from 'dayjs'
 import { useEffect, useRef, useState } from 'react'
@@ -45,7 +45,7 @@ export default function ReviewPage() {
   const [saving, setSaving] = useState(false)
   const [history, setHistory] = useState<ReviewLog[]>([])
   const [showHistory, setShowHistory] = useState(false)
-  const [model, setModel] = useState<string>('deepseek-v4-flash')
+  const [model, setModel] = useState<string>('deepseek-v4-pro')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -188,15 +188,28 @@ export default function ReviewPage() {
           </Text>
         </div>
         <Space>
-          <Segmented
-            size="small"
-            value={model}
-            onChange={(v) => setModel(v as string)}
-            options={[
-              { label: 'Flash', value: 'deepseek-v4-flash' },
-              { label: 'Pro', value: 'deepseek-v4-pro' },
-            ]}
-          />
+          <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
+            {([
+              { value: 'deepseek-v4-flash', label: '⚡ Flash', active: { bg: '#0ea5e9', color: '#fff' }, inactive: { bg: '#f0f9ff', color: '#0369a1' } },
+              { value: 'deepseek-v4-pro',   label: '✨ Pro',   active: { bg: '#d97706', color: '#fff' }, inactive: { bg: '#fffbeb', color: '#92400e' } },
+            ] as const).map((opt) => {
+              const selected = model === opt.value
+              const style = selected ? opt.active : opt.inactive
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => setModel(opt.value)}
+                  style={{
+                    padding: '3px 12px', fontSize: 12, fontWeight: selected ? 600 : 400,
+                    border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                    background: style.bg, color: style.color,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
           <Button
             size="small"
             onClick={() => setShowHistory(!showHistory)}

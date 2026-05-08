@@ -177,12 +177,15 @@ export default function SleepPage() {
       title: '奖惩',
       key: 'bonus',
       render: (_: unknown, record: SleepLog) => {
+        const isToday = record.date === todayStr
         const lines: React.ReactNode[] = []
         if (record.penalized) {
           if (record.penalty_exp > 0)
             lines.push(<div key="late" style={{ color: '#ef4444', fontSize: 12 }}>🌙 晚睡 -{record.penalty_exp.toFixed(1)}</div>)
-          else
+          else if (isToday)
             lines.push(<div key="late-active" style={{ color: '#f59e0b', fontSize: 12 }}>🌙 晚睡惩罚中</div>)
+          else
+            lines.push(<div key="late-none" style={{ color: '#f59e0b', fontSize: 12 }}>🌙 晚睡（当日无任务）</div>)
         }
         if (record.bonus_exp > 0)
           lines.push(<div key="bonus" style={{ color: '#22c55e', fontSize: 12 }}>⏰ 时长 +{record.bonus_exp.toFixed(0)}</div>)
