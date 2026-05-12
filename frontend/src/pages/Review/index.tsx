@@ -1,7 +1,7 @@
 import {
   BookOutlined,
   CopyOutlined,
-  LoadingOutlined,
+  PauseCircleOutlined,
   SaveOutlined,
   SendOutlined,
 } from '@ant-design/icons'
@@ -47,6 +47,7 @@ export default function ReviewPage() {
   const [showHistory, setShowHistory] = useState(false)
   const [model, setModel] = useState<string>('deepseek-v4-pro')
   const bottomRef = useRef<HTMLDivElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     loadHistory()
@@ -75,6 +76,9 @@ export default function ReviewPage() {
     const assistantIndex = newMessages.length
     setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
 
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
       const toSend = newMessages.filter(
         (m, i) => (i > 0 || m.role === 'user') && !m.content.startsWith('⚠️'),
@@ -88,7 +92,7 @@ export default function ReviewPage() {
           ...(code ? { 'X-Access-Code': code } : {}),
         },
         body: JSON.stringify({ messages: toSend, model }),
-        signal: AbortSignal.timeout(60000),
+        signal: controller.signal,
       })
 
       if (!resp.ok) {
@@ -131,15 +135,28 @@ export default function ReviewPage() {
         message.info('AI 已生成今日总结，点击「保存总结」存入记录', 4)
       }
     } catch (e) {
-      const errMsg = e instanceof Error ? e.message : '请求失败'
-      message.error(errMsg, 6)
-      setMessages((prev) => {
-        const next = [...prev]
-        next[assistantIndex + 1] = { role: 'assistant', content: `⚠️ ${errMsg}` }
-        return next
-      })
+      // 用户主动中止不报错，保留已有内容
+      if (e instanceof Error && e.name === 'AbortError') {
+        setMessages((prev) => {
+          const next = [...prev]
+          const cur = next[assistantIndex + 1]
+          if (cur && !cur.content) {
+            next.splice(assistantIndex + 1, 1) // 内容为空则移除气泡
+          }
+          return next
+        })
+      } else {
+        const errMsg = e instanceof Error ? e.message : '请求失败'
+        message.error(errMsg, 6)
+        setMessages((prev) => {
+          const next = [...prev]
+          next[assistantIndex + 1] = { role: 'assistant', content: `⚠️ ${errMsg}` }
+          return next
+        })
+      }
     } finally {
       setLoading(false)
+      abortRef.current = null
     }
   }
 
@@ -267,12 +284,6 @@ export default function ReviewPage() {
         {messages.map((msg, i) => (
           <MessageBubble key={i} msg={msg} />
         ))}
-        {loading && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 12px' }}>
-            <LoadingOutlined style={{ color: '#a78bfa' }} />
-            <Text type="secondary" style={{ fontSize: 13 }}>思考中...</Text>
-          </div>
-        )}
         <div ref={bottomRef} />
       </div>
 
@@ -293,15 +304,25 @@ export default function ReviewPage() {
             disabled={loading}
             style={{ flex: 1, resize: 'none' }}
           />
-          <Tooltip title="发送 (Enter)">
-            <Button
-              type="primary"
-              icon={<SendOutlined />}
-              onClick={sendMessage}
-              loading={loading}
-              style={{ height: 'auto', alignSelf: 'flex-end' }}
-            />
-          </Tooltip>
+          {loading ? (
+            <Tooltip title="停止生成">
+              <Button
+                danger
+                icon={<PauseCircleOutlined />}
+                onClick={() => abortRef.current?.abort()}
+                style={{ height: 'auto', alignSelf: 'flex-end' }}
+              />
+            </Tooltip>
+          ) : (
+            <Tooltip title="发送 (Enter)">
+              <Button
+                type="primary"
+                icon={<SendOutlined />}
+                onClick={sendMessage}
+                style={{ height: 'auto', alignSelf: 'flex-end' }}
+              />
+            </Tooltip>
+          )}
         </div>
         <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>
           发「总结一下」生成今日总结
@@ -330,6 +351,8 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
       >
         {isUser ? (
           <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
+        ) : !msg.content ? (
+          <span style={{ color: '#a78bfa', fontSize: 13 }}>复盘助手思考中<span className="thinking-dots">...</span></span>
         ) : (
           <ReactMarkdown
             components={{

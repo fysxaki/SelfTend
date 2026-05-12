@@ -2,6 +2,16 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+@keyframes thinking-blink {
+  0%, 80%, 100% { opacity: 0.2; }
+  40% { opacity: 1; }
+}
+.thinking-dots {
+  display: inline-block;
+  animation: thinking-blink 1.4s infinite;
+  letter-spacing: 2px;
+}
+
 body {
   background: #f0eeff;
   color: #1e1826;
