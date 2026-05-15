@@ -15,6 +15,7 @@ import {
   redeemPrize,
   updatePrize,
 } from '@/api'
+import { FloatingDecorations } from '@/components/Decorations'
 import { useAppStore } from '@/stores/useAppStore'
 import type { Prize } from '@/types'
 import { formatExp } from '@/utils/task'
@@ -132,13 +133,20 @@ export default function Rewards() {
   }, {})
 
   return (
-    <div style={{ padding: 24, maxWidth: 820, margin: '0 auto' }}>
+    <div style={{ padding: 24, maxWidth: 820, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+      <FloatingDecorations />
+
+      {/* 页面标题 */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16, position: 'relative', zIndex: 1 }}>
+        <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#5b21b6' }}>奖励</span>
+        <span className="font-script" style={{ fontSize: 26, color: '#a78bfa' }}>Rewards</span>
+      </div>
 
       {/* 顶部积分卡 */}
       <div
         style={{
-          background: 'linear-gradient(135deg, #4c1d95 0%, #7c3aed 60%, #a855f7 100%)',
-          borderRadius: 16,
+          background: 'linear-gradient(135deg, #f9a8d4 0%, #c084fc 50%, #a78bfa 100%)',
+          borderRadius: 20,
           padding: '24px 28px',
           marginBottom: 28,
           color: '#fff',
@@ -146,6 +154,9 @@ export default function Rewards() {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 16,
+          boxShadow: '0 4px 18px rgba(192, 132, 252, 0.25)',
+          position: 'relative',
+          zIndex: 1,
         }}
       >
         <div style={{ minWidth: 0 }}>

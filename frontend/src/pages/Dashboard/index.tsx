@@ -4,6 +4,8 @@ import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { completeTask, createEnergyLog, getEnergyLogs, getTasks, updateEnergyLog } from '@/api'
 import type { CompleteTaskResult } from '@/api'
+import { FloatingDecorations } from '@/components/Decorations'
+import SectionTitle from '@/components/SectionTitle'
 import { useAppStore } from '@/stores/useAppStore'
 import type { EnergyLog, Task } from '@/types'
 import { calcLevel, formatExp } from '@/utils/task'
@@ -95,16 +97,21 @@ export default function Dashboard() {
 
 
   return (
-    <div className="page-container" style={{ padding: 20, maxWidth: 820, margin: '0 auto' }}>
+    <div className="page-container" style={{ padding: 20, maxWidth: 820, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+
+      {/* 飘浮装饰层 */}
+      <FloatingDecorations />
 
       {/* 赛季 Banner */}
       <div
         className="season-banner"
         style={{
-          background: 'linear-gradient(135deg, #4c1d95 0%, #7c3aed 60%, #a855f7 100%)',
-          borderRadius: 16, padding: '18px 22px', marginBottom: 16,
+          background: 'linear-gradient(135deg, #f9a8d4 0%, #c084fc 50%, #a78bfa 100%)',
+          borderRadius: 20, padding: '18px 22px', marginBottom: 16,
           color: '#fff', display: 'flex', justifyContent: 'space-between',
           alignItems: 'center', gap: 12,
+          boxShadow: '0 4px 18px rgba(192, 132, 252, 0.25)',
+          position: 'relative', zIndex: 1,
         }}
       >
         <div style={{ minWidth: 0 }}>
@@ -124,7 +131,7 @@ export default function Dashboard() {
 
       {/* 三栏统计 */}
       {levelInfo && stats && (
-        <div className="stats-grid">
+        <div className="stats-grid" style={{ position: 'relative', zIndex: 1 }}>
           <div className="stat-card" style={{ background: '#fff', border: '1.5px solid #e4deff', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 6px rgba(124,58,237,0.06)' }}>
             <div style={{ fontSize: 12, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
               <TrophyOutlined /> 等级
@@ -175,6 +182,7 @@ export default function Dashboard() {
           {/* 每日任务 */}
           <TaskSection
             title="每日任务"
+            en="Today"
             badge={`${dailyDone}/${dailyTasks.length}`}
             hint="00:00 重置"
             tasks={dailyTasks}
@@ -186,6 +194,7 @@ export default function Dashboard() {
           {/* 每周任务 */}
           <TaskSection
             title="每周任务"
+            en="Weekly"
             badge={`${weeklyDone}/${weeklyTasks.length}`}
             hint="周一重置"
             tasks={weeklyTasks}
@@ -198,6 +207,7 @@ export default function Dashboard() {
           {seasonTasks.length > 0 && (
             <TaskSection
               title="赛季任务"
+              en="Season"
               badge={`${seasonDone}/${seasonTasks.length}`}
               hint="赛季内完成即可"
               tasks={seasonTasks}
@@ -211,6 +221,7 @@ export default function Dashboard() {
           {oncePending > 0 && (
             <TaskSection
               title="一次性任务"
+              en="Once"
               badge={`${onceDone}/${onceTasks.length}`}
               hint="完成即归档"
               tasks={onceTasks}
@@ -255,6 +266,8 @@ function EnergyBar({
         display: 'flex',
         alignItems: 'center',
         gap: 12,
+        position: 'relative',
+        zIndex: 1,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
@@ -312,6 +325,7 @@ function EnergyBar({
 // ── 抽出独立小组件避免重复 ───────────────────────────────
 interface SectionProps {
   title: string
+  en?: string
   badge: string
   hint: string
   tasks: Task[]
@@ -320,16 +334,10 @@ interface SectionProps {
   onUndo: (t: Task) => Promise<void>
 }
 
-function TaskSection({ title, badge, hint, tasks, empty, onComplete, onUndo }: SectionProps) {
+function TaskSection({ title, en, badge, hint, tasks, empty, onComplete, onUndo }: SectionProps) {
   return (
-    <section style={{ marginBottom: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 600, color: '#1e1826', display: 'flex', alignItems: 'center', gap: 8 }}>
-          {title}
-          <span style={{ fontSize: 13, fontWeight: 400, color: '#9ca3af' }}>{badge}</span>
-        </h2>
-        <span style={{ fontSize: 11, color: '#9ca3af' }}>{hint}</span>
-      </div>
+    <section style={{ marginBottom: 24, position: 'relative', zIndex: 1 }}>
+      <SectionTitle cn={title} en={en} count={badge} hint={hint} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {tasks.length === 0
           ? <p style={{ color: '#9ca3af', textAlign: 'center', padding: '24px 0', fontSize: 13 }}>{empty}</p>

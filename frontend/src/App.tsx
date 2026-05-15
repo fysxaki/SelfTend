@@ -76,7 +76,7 @@ function AppLayout() {
         }}
       >
         <div className="flex items-center justify-center h-14" style={{ borderBottom: '1px solid #3d2a8a' }}>
-          <span style={{ color: '#e0d4ff', fontSize: 22 }}>◈</span>
+          <span className="font-script" style={{ color: '#fde047', fontSize: 22, lineHeight: 1 }}>Self</span>
         </div>
         <div className="flex flex-col items-center gap-1 pt-3">
           {NAV_ITEMS.map((item) => {
@@ -103,7 +103,7 @@ function AppLayout() {
         </div>
       </Sider>
 
-      <Layout style={{ marginLeft: 68, background: '#f0eeff', minHeight: '100vh' }}>
+      <Layout style={{ marginLeft: 68, background: 'transparent', minHeight: '100vh' }}>
         <Content>
           <Suspense fallback={
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80vh' }}>

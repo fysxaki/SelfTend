@@ -2,6 +2,7 @@ import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { Button, Form, Input, InputNumber, Modal, Select, Table, Tag, message } from 'antd'
 import { useEffect, useState } from 'react'
 import { createTask, deleteTask, getTasks, updateTask } from '@/api'
+import { FloatingDecorations } from '@/components/Decorations'
 import { useAppStore } from '@/stores/useAppStore'
 import type { Task, TaskCategory, TaskDifficulty, TaskType } from '@/types'
 import { CATEGORY_CONFIG, DIFFICULTY_CONFIG, TIMING_CONFIG, TIMING_OPTIONS } from '@/utils/task'
@@ -151,9 +152,13 @@ export default function Tasks() {
   }
 
   return (
-    <div style={{ padding: '16px 16px 32px', maxWidth: 820, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 700, color: '#1e1826' }}>任务管理</h1>
+    <div style={{ padding: '16px 16px 32px', maxWidth: 820, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+      <FloatingDecorations />
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16, position: 'relative', zIndex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+          <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#5b21b6' }}>任务管理</span>
+          <span className="font-script" style={{ fontSize: 26, color: '#a78bfa' }}>Tasks</span>
+        </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建任务</Button>
       </div>
 

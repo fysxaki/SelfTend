@@ -26,6 +26,7 @@ import {
   getSleepLogs,
   updateSleepLog,
 } from '@/api'
+import { FloatingDecorations } from '@/components/Decorations'
 import { useAppStore } from '@/stores/useAppStore'
 import type { SleepLog } from '@/types'
 
@@ -218,14 +219,17 @@ export default function SleepPage() {
   ]
 
   return (
-    <div style={{ padding: '24px', maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ padding: '24px', maxWidth: 900, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+      <FloatingDecorations />
       {/* 顶部标题 + 今日状态 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24, position: 'relative', zIndex: 1 }}>
         <div>
-          <Title level={4} style={{ margin: 0 }}>
-            <MoonOutlined style={{ marginRight: 8, color: '#a78bfa' }} />
-            睡眠记录
-          </Title>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+            <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#5b21b6' }}>
+              <MoonOutlined style={{ marginRight: 6, color: '#a78bfa' }} />睡眠记录
+            </span>
+            <span className="font-script" style={{ fontSize: 26, color: '#a78bfa' }}>Sleep</span>
+          </div>
           <Text type="secondary" style={{ fontSize: 13 }}>
             超过 01:30 入睡扣20% · &lt;6h 扣20% · 7-8h +12分 · ≥8h +52分
           </Text>

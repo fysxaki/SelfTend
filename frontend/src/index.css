@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Pacifico&display=swap');
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -12,14 +13,65 @@
   letter-spacing: 2px;
 }
 
+/* ── 主题色变量（手账粉紫薄荷柠檬） ─────────── */
+:root {
+  --color-bg-base:    #fdf2f8;  /* 浅粉底 */
+  --color-bg-soft:    #f3e8ff;  /* 薄紫 */
+  --color-mint:       #a7f3d0;
+  --color-lemon:      #fef08a;
+  --color-candy-pink: #fbcfe8;
+  --color-sky:        #bae6fd;
+  --color-text-deep:  #5b5bd6;  /* 紫蓝文字 */
+}
+
+/* ── 手写字体类 ─────────────────────────────── */
+.font-script {
+  font-family: 'Caveat', 'Pacifico', cursive;
+  font-weight: 700;
+}
+
+/* ── 黄色高光下划线（标题装饰） ─────────────── */
+.title-highlight {
+  position: relative;
+  display: inline-block;
+}
+.title-highlight::after {
+  content: '';
+  position: absolute;
+  left: -6px; right: -6px; bottom: -2px;
+  height: 8px;
+  background: #fde047;
+  border-radius: 6px;
+  z-index: -1;
+  opacity: 0.7;
+  transform: skewX(-6deg);
+}
+
 body {
-  background: #f0eeff;
+  background-color: var(--color-bg-base);
+  /* 网格纸背景 */
+  background-image:
+    linear-gradient(rgba(168, 85, 247, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(168, 85, 247, 0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
   color: #1e1826;
   font-family: system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-#root { min-height: 100svh; }
+#root { min-height: 100svh; position: relative; }
+
+/* ── 飘浮装饰：星星轻微旋转 + 心形呼吸 ───────── */
+@keyframes float-rotate {
+  0%, 100% { transform: rotate(-8deg) translateY(0); }
+  50%      { transform: rotate(8deg)  translateY(-6px); }
+}
+@keyframes heart-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50%      { transform: scale(1.15); opacity: 0.85; }
+}
+.deco-float { animation: float-rotate 6s ease-in-out infinite; }
+.deco-pulse { animation: heart-pulse 4s ease-in-out infinite; }
 
 /* ── 移动端响应式 ─────────────────────────────── */
 

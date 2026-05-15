@@ -10,6 +10,7 @@ import ReactMarkdown from 'react-markdown'
 import dayjs from 'dayjs'
 import { useEffect, useRef, useState } from 'react'
 import { getReviews, saveReview } from '@/api'
+import { FloatingDecorations } from '@/components/Decorations'
 import type { ChatMessage, ReviewLog } from '@/types'
 
 const { Text, Paragraph } = Typography
@@ -191,14 +192,17 @@ export default function ReviewPage() {
   )
 
   return (
-    <div style={{ padding: '24px', maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 48px)' }}>
+    <div style={{ padding: '24px', maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 48px)', position: 'relative', zIndex: 1 }}>
+      <FloatingDecorations />
 
       {/* 标题栏 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexShrink: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 16, flexShrink: 0, position: 'relative', zIndex: 1 }}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: '#1e1826' }}>
-            <BookOutlined style={{ marginRight: 8, color: '#a78bfa' }} />
-            每日复盘
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+            <span className="title-highlight" style={{ fontSize: 17, fontWeight: 700, color: '#5b21b6' }}>
+              <BookOutlined style={{ marginRight: 6, color: '#a78bfa' }} />每日复盘
+            </span>
+            <span className="font-script" style={{ fontSize: 24, color: '#a78bfa' }}>Review</span>
           </div>
           <Text type="secondary" style={{ fontSize: 12 }}>
             {dayjs().format('YYYY年MM月DD日 dddd')}

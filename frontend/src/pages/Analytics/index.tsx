@@ -15,6 +15,7 @@ import {
   YAxis,
 } from 'recharts'
 import { getAnalytics } from '@/api'
+import { FloatingDecorations } from '@/components/Decorations'
 import type { AnalyticsItem } from '@/types'
 
 const { Title, Text } = Typography
@@ -167,21 +168,26 @@ export default function AnalyticsPage() {
   const isEmpty = data.length === 0
 
   return (
-    <div style={{ padding: '24px', maxWidth: 1000, margin: '0 auto' }}>
+    <div style={{ padding: '24px', maxWidth: 1000, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+      <FloatingDecorations />
       {/* 标题 + 范围选择 */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center',
+          alignItems: 'flex-end',
           marginBottom: 24,
+          position: 'relative',
+          zIndex: 1,
         }}
       >
         <div>
-          <Title level={4} style={{ margin: 0 }}>
-            <BarChartOutlined style={{ marginRight: 8, color: '#a78bfa' }} />
-            睡眠 & 能量分析
-          </Title>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+            <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#5b21b6' }}>
+              <BarChartOutlined style={{ marginRight: 6, color: '#a78bfa' }} />数据分析
+            </span>
+            <span className="font-script" style={{ fontSize: 26, color: '#a78bfa' }}>Analytics</span>
+          </div>
           <Text type="secondary" style={{ fontSize: 13 }}>
             看看睡得多是否真的让你更有能量
           </Text>

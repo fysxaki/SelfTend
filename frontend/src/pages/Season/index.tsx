@@ -3,6 +3,7 @@ import { Button, Checkbox, DatePicker, Form, Input, Modal, Select, Space, Tag, T
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { createSeason, getIncompleteSeasonTasks, getSeasons, getTasks, inheritTasks, updateSeason } from '@/api'
+import { FloatingDecorations } from '@/components/Decorations'
 import { useAppStore } from '@/stores/useAppStore'
 import type { Season, Task } from '@/types'
 
@@ -155,9 +156,13 @@ export default function SeasonPage() {
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 700, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#1e1826' }}>赛季</h1>
+    <div style={{ padding: 24, maxWidth: 700, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+      <FloatingDecorations />
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20, position: 'relative', zIndex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+          <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#5b21b6' }}>赛季</span>
+          <span className="font-script" style={{ fontSize: 26, color: '#a78bfa' }}>Season</span>
+        </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建赛季</Button>
       </div>
 
