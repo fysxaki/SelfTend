@@ -18,7 +18,7 @@ import { getAnalytics } from '@/api'
 import { FloatingDecorations } from '@/components/Decorations'
 import type { AnalyticsItem } from '@/types'
 
-const { Title, Text } = Typography
+const { Text } = Typography
 
 const ENERGY_COLOR = '#a78bfa'
 const SLEEP_COLOR = '#38bdf8'

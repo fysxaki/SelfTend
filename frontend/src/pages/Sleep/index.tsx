@@ -30,7 +30,7 @@ import { FloatingDecorations } from '@/components/Decorations'
 import { useAppStore } from '@/stores/useAppStore'
 import type { SleepLog } from '@/types'
 
-const { Title, Text } = Typography
+const { Text } = Typography
 
 export default function SleepPage() {
   const { fetchStats } = useAppStore()
