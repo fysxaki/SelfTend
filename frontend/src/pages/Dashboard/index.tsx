@@ -93,7 +93,8 @@ export default function Dashboard() {
   const seasonDone = seasonTasks.filter((t) => t.completed_in_season).length
   const onceDone   = onceTasks.filter((t) => t.completed_in_season).length
   const oncePending = onceTasks.filter((t) => !t.completed_in_season).length
-  const daysLeft   = dayjs(currentSeason.end_date).diff(dayjs(), 'day')
+  // 用当天 00:00 对齐，避免不足 24h 被截断（含结束日整天，所以 +1）
+  const daysLeft   = Math.max(0, dayjs(currentSeason.end_date).startOf('day').diff(dayjs().startOf('day'), 'day') + 1)
 
 
   return (

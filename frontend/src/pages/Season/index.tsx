@@ -176,7 +176,7 @@ export default function SeasonPage() {
         {seasons.map((season) => {
           const isActive = currentSeason?.id === season.id
           const isExpired = dayjs(season.end_date).isBefore(dayjs(), 'day')
-          const daysLeft = dayjs(season.end_date).diff(dayjs(), 'day')
+          const daysLeft = Math.max(0, dayjs(season.end_date).startOf('day').diff(dayjs().startOf('day'), 'day') + 1)
 
           return (
             <div
