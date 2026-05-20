@@ -9,7 +9,7 @@ echo "📦 更新系统..."
 apt update && apt upgrade -y
 
 echo "📦 安装基础工具..."
-apt install -y git curl wget gcc nginx
+apt install -y git curl wget gcc nginx certbot python3-certbot-nginx
 
 echo "📦 安装 Go 1.22..."
 wget -q https://go.dev/dl/go1.22.5.linux-amd64.tar.gz -O /tmp/go.tar.gz
@@ -36,6 +36,9 @@ echo ""
 echo "🎉 服务器初始化完成！"
 echo ""
 echo "下一步："
-echo "  cd /opt/selftend"
-echo "  git clone https://github.com/fysxaki/SelfTend.git ."
-echo "  bash deploy/2_deploy.sh"
+echo "  1. 先到域名服务商添加 DNS 解析：zzz.fysxq.lat → 本机IP"
+echo "  2. cd /opt/selftend"
+echo "  3. git clone https://github.com/fysxaki/SelfTend.git ."
+echo "  4. bash deploy/2_deploy.sh        # 先跑一次（HTTP）"
+echo "  5. certbot --nginx -d zzz.fysxq.lat   # 申请证书并自动改 Nginx"
+echo "  6. 证书自动续期已由 certbot 系统定时任务接管，无需手动处理"

@@ -54,5 +54,7 @@ fi
 
 echo ""
 echo "🎉 部署完成！"
-SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || echo "YOUR_SERVER_IP")
-echo "   访问地址：http://$SERVER_IP"
+echo "   访问地址：https://zzz.fysxq.lat"
+echo ""
+echo "💡 如果是第一次部署，还需要申请 SSL 证书："
+echo "   certbot --nginx -d zzz.fysxq.lat"
