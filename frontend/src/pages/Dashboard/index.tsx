@@ -185,7 +185,7 @@ export default function Dashboard() {
             title="每日任务"
             en="Today"
             badge={`${dailyDone}/${dailyTasks.length}`}
-            hint="00:00 重置"
+            hint="每天 0 点刷新"
             tasks={dailyTasks}
             empty="暂无每日任务"
             onComplete={handleComplete}
@@ -273,7 +273,7 @@ function EnergyBar({
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
         <ThunderboltOutlined style={{ color: '#a78bfa', fontSize: 14 }} />
-        <span style={{ fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' }}>今日能量</span>
+        <span style={{ fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' }}>此刻感觉怎么样？</span>
       </div>
 
       <div style={{ display: 'flex', gap: 8, flex: 1 }}>

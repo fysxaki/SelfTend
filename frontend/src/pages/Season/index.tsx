@@ -232,12 +232,12 @@ export default function SeasonPage() {
                   <span style={{ fontWeight: 600, fontSize: 15, color: '#1e1826' }}>{season.name}</span>
                   {isActive && (
                     <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: '#ede9fe', color: '#7c3aed', fontWeight: 500 }}>
-                      当前
+                      进行中
                     </span>
                   )}
                   {isExpired && (
-                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: '#f3f4f6', color: '#9ca3af' }}>
-                      已结束
+                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: '#f0fdf4', color: '#15803d' }}>
+                      已完成
                     </span>
                   )}
                 </div>

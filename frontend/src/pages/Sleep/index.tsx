@@ -96,16 +96,16 @@ export default function SleepPage() {
         const parts: string[] = []
         if (log.penalized) {
           if (log.penalty_exp > 0)
-            parts.push(`🌙 晚睡扣 ${log.penalty_exp.toFixed(1)} 分`)
+            parts.push(`🌙 入睡偏晚，扣了 ${log.penalty_exp.toFixed(1)} 分，今晚早点休息`)
           else if (isToday)
-            parts.push(`🌙 晚睡惩罚已激活（今日后续任务将扣20%）`)
+            parts.push(`🌙 晚睡惩罚已激活，今日任务奖励将打八折`)
           else
-            parts.push(`🌙 ${dateLabel} 晚睡已标记`)
+            parts.push(`🌙 ${dateLabel} 晚睡已记录`)
         }
         if (log.bonus_exp > 0)
-          parts.push(`⏰ ${dateLabel}睡眠奖励 +${log.bonus_exp.toFixed(0)} 分`)
+          parts.push(`🎉 ${dateLabel}睡眠奖励 +${log.bonus_exp.toFixed(0)} 分`)
         if (log.bonus_exp < 0)
-          parts.push(`😴 ${dateLabel}睡眠不足扣 ${Math.abs(log.bonus_exp).toFixed(1)} 分`)
+          parts.push(`💤 ${dateLabel}睡眠时长偏短，扣 ${Math.abs(log.bonus_exp).toFixed(1)} 分`)
         if (parts.length > 0) {
           message.warning(parts.join('　'), 5)
         } else {
@@ -256,11 +256,11 @@ export default function SleepPage() {
           <Space direction="vertical" size={2}>
             {todayLog.penalized && (
               <Space>
-                <WarningOutlined style={{ color: '#d97706' }} />
+                <span>🌙</span>
                 <Text style={{ color: '#92400e' }}>
-                  昨晚 {todayLog.sleep_time} 入睡，晚睡{todayLog.penalty_exp > 0
-                    ? <>扣除 <strong>{todayLog.penalty_exp.toFixed(1)}</strong> 积分</>
-                    : '惩罚已激活，后续任务将扣20%'}
+                  昨晚 {todayLog.sleep_time} 才入睡，{todayLog.penalty_exp > 0
+                    ? <>轻轻扣了 <strong>{todayLog.penalty_exp.toFixed(1)}</strong> 分——今晚试试早点躺下？</>
+                    : '晚睡惩罚已激活，今日任务奖励将打八折'}
                 </Text>
               </Space>
             )}
@@ -268,15 +268,15 @@ export default function SleepPage() {
               <Space>
                 <span>🎉</span>
                 <Text style={{ color: '#166534' }}>
-                  睡了 {Math.floor(todayLog.duration)}h{Math.round((todayLog.duration % 1) * 60)}m，奖励 <strong>+{todayLog.bonus_exp.toFixed(0)}</strong> 积分
+                  睡了 {Math.floor(todayLog.duration)}h{Math.round((todayLog.duration % 1) * 60)}m，睡眠奖励 <strong>+{todayLog.bonus_exp.toFixed(0)}</strong> 分，继续保持！
                 </Text>
               </Space>
             )}
             {todayLog.bonus_exp < 0 && (
               <Space>
-                <WarningOutlined style={{ color: '#d97706' }} />
+                <span>💤</span>
                 <Text style={{ color: '#92400e' }}>
-                  睡眠不足6小时，额外扣除 <strong>{Math.abs(todayLog.bonus_exp).toFixed(1)}</strong> 积分
+                  睡眠时长偏短，扣了 <strong>{Math.abs(todayLog.bonus_exp).toFixed(1)}</strong> 分。今天注意补充能量，明天早点睡～
                 </Text>
               </Space>
             )}

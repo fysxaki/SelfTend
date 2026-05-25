@@ -212,21 +212,21 @@ export default function AnalyticsPage() {
             value: `${stats.avgSleep.toFixed(1)}h`,
             label: '平均睡眠时长',
             color: SLEEP_COLOR,
-            borderColor: '#1e3a5f',
+            accentColor: SLEEP_COLOR,
           },
           {
             icon: <ThunderboltOutlined style={{ fontSize: 20, color: ENERGY_COLOR }} />,
             value: stats.avgEnergy.toFixed(1),
             label: '平均能量值 / 5',
             color: ENERGY_COLOR,
-            borderColor: '#3b1f6b',
+            accentColor: ENERGY_COLOR,
           },
           {
             icon: null,
             value: String(stats.penaltyDays),
-            label: '触发惩罚天数',
-            color: PENALTY_COLOR,
-            borderColor: '#5f1f1f',
+            label: '睡眠异常天数',
+            color: '#6b7280',
+            accentColor: '#d1d5db',
           },
         ].map((item, i) => (
           <Col key={i} span={8} style={{ display: 'flex' }}>
@@ -235,8 +235,10 @@ export default function AnalyticsPage() {
               style={{
                 flex: 1,
                 textAlign: 'center',
-                background: '#0f172a',
-                border: `1px solid ${item.borderColor}`,
+                background: '#ffffff',
+                border: '1px solid #e4deff',
+                borderLeft: `4px solid ${item.accentColor}`,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
               }}
               styles={{
                 body: {
@@ -275,7 +277,7 @@ export default function AnalyticsPage() {
           >
             <ResponsiveContainer width="100%" height={280}>
               <ComposedChart data={lineData} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e4deff" />
                 <XAxis
                   dataKey="date"
                   tick={{ fontSize: 11, fill: '#9ca3af' }}
@@ -347,7 +349,7 @@ export default function AnalyticsPage() {
             ) : (
               <ResponsiveContainer width="100%" height={260}>
                 <ScatterChart margin={{ top: 8, right: 24, left: 0, bottom: 16 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e4deff" />
                   <XAxis
                     dataKey="x"
                     type="number"

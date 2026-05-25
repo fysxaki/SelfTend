@@ -284,7 +284,7 @@ export default function Rewards() {
                             onClick={() => handleRedeem(prize)}
                             style={canAfford ? {} : { color: '#c4b5fd', borderColor: '#e4deff' }}
                           >
-                            {canAfford ? '立即兑换' : '积分不足'}
+                            {canAfford ? '立即兑换' : `还差 ${formatExp(prize.cost - spendable)} 分`}
                           </Button>
                         )}
                       </div>

@@ -50,7 +50,7 @@ export default function Login() {
           SelfTend
         </div>
         <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 32 }}>
-          请输入访问码继续
+          输入访问码进入
         </div>
 
         {/* 输入框 */}

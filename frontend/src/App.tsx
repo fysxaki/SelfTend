@@ -31,13 +31,13 @@ const Login        = lazy(() => import('@/pages/Login'))
 const { Sider, Content } = Layout
 
 const NAV_ITEMS = [
-  { key: '/',          icon: <AppstoreOutlined />,  label: '今日',  path: '/' },
-  { key: '/tasks',     icon: <ScheduleOutlined />,  label: '任务',  path: '/tasks' },
-  { key: '/rewards',   icon: <GiftOutlined />,      label: '奖励',  path: '/rewards' },
-  { key: '/season',    icon: <TrophyOutlined />,    label: '赛季',  path: '/season' },
-  { key: '/sleep',     icon: <MoonOutlined />,      label: '睡眠',  path: '/sleep' },
-  { key: '/analytics', icon: <BarChartOutlined />,  label: '分析',  path: '/analytics' },
-  { key: '/review',    icon: <BookOutlined />,      label: '复盘',  path: '/review' },
+  { key: '/',          icon: <AppstoreOutlined />,  label: '今日',    path: '/' },
+  { key: '/tasks',     icon: <ScheduleOutlined />,  label: '我的任务', path: '/tasks' },
+  { key: '/rewards',   icon: <GiftOutlined />,      label: '奖励商店', path: '/rewards' },
+  { key: '/season',    icon: <TrophyOutlined />,    label: '当前赛季', path: '/season' },
+  { key: '/sleep',     icon: <MoonOutlined />,      label: '睡眠记录', path: '/sleep' },
+  { key: '/analytics', icon: <BarChartOutlined />,  label: '数据分析', path: '/analytics' },
+  { key: '/review',    icon: <BookOutlined />,      label: '每日复盘', path: '/review' },
 ]
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -65,7 +65,7 @@ function AppLayout() {
   return (
     <Layout style={{ minHeight: '100svh' }}>
       <Sider
-        width={68}
+        width={200}
         style={{
           background: '#2e1f72',
           borderRight: '1px solid #3d2a8a',
@@ -75,10 +75,10 @@ function AppLayout() {
           zIndex: 100,
         }}
       >
-        <div className="flex items-center justify-center h-14" style={{ borderBottom: '1px solid #3d2a8a' }}>
-          <span className="font-script" style={{ color: '#fde047', fontSize: 22, lineHeight: 1 }}>Self</span>
+        <div className="flex items-center h-14 px-5" style={{ borderBottom: '1px solid #3d2a8a' }}>
+          <span className="font-script" style={{ color: '#fde047', fontSize: 22, lineHeight: 1 }}>SelfTend</span>
         </div>
-        <div className="flex flex-col items-center gap-1 pt-3">
+        <div className="flex flex-col gap-1 pt-3 px-3">
           {NAV_ITEMS.map((item) => {
             const active = location.pathname === item.key
             return (
@@ -86,16 +86,16 @@ function AppLayout() {
                 key={item.key}
                 to={item.path}
                 style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  gap: 4, width: 52, paddingTop: 10, paddingBottom: 10,
-                  borderRadius: 10, fontSize: 11,
+                  display: 'flex', flexDirection: 'row', alignItems: 'center',
+                  gap: 10, padding: '10px 12px',
+                  borderRadius: 10, fontSize: 13,
                   fontWeight: active ? 600 : 400,
                   textDecoration: 'none', transition: 'all 0.15s',
                   background: active ? 'rgba(255,255,255,0.15)' : 'transparent',
                   color: active ? '#ffffff' : '#c4b5fd',
                 }}
               >
-                <span style={{ fontSize: 16 }}>{item.icon}</span>
+                <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
                 <span>{item.label}</span>
               </NavLink>
             )
@@ -103,7 +103,7 @@ function AppLayout() {
         </div>
       </Sider>
 
-      <Layout style={{ marginLeft: 68, background: 'transparent', minHeight: '100vh' }}>
+      <Layout style={{ marginLeft: 200, background: 'transparent', minHeight: '100vh' }}>
         <Content>
           <Suspense fallback={
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80vh' }}>
