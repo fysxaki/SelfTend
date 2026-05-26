@@ -298,12 +298,12 @@ export default function ReviewPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              if (e.key === 'Enter' && e.shiftKey) {
                 e.preventDefault()
                 sendMessage()
               }
             }}
-            placeholder="说说今天怎么样... （Enter 发送，Shift+Enter 换行）"
+            placeholder="今天怎么样？随便说说..."
             autoSize={{ minRows: 2, maxRows: 5 }}
             disabled={loading}
             style={{ flex: 1, resize: 'none' }}
@@ -318,7 +318,7 @@ export default function ReviewPage() {
               />
             </Tooltip>
           ) : (
-            <Tooltip title="发送 (Enter)">
+            <Tooltip title="发送 (Shift+Enter)">
               <Button
                 type="primary"
                 icon={<SendOutlined />}
@@ -329,7 +329,7 @@ export default function ReviewPage() {
           )}
         </div>
         <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>
-          发「总结一下」生成今日总结
+          说完发「总结一下」，我帮你整理今天 · Shift+Enter 发送，Enter 换行
         </Text>
       </div>
     </div>

@@ -118,7 +118,14 @@ export default function Tasks() {
       width: 70,
       render: (diff: TaskDifficulty) => {
         const d = DIFFICULTY_CONFIG[diff]
-        return <span style={{ color: d.color, fontWeight: 500, fontSize: 13 }}>{d.label}</span>
+        return (
+          <span style={{
+            color: d.color, background: d.bg, fontWeight: 500, fontSize: 12,
+            padding: '2px 8px', borderRadius: 20,
+          }}>
+            {d.label}
+          </span>
+        )
       },
     },
     {
