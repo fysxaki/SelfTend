@@ -1,10 +1,10 @@
 import { CheckOutlined, LoadingOutlined, UndoOutlined } from '@ant-design/icons'
 import { Button, Modal, Space, message } from 'antd'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { undoTask } from '@/api'
 import type { CompleteTaskResult } from '@/api'
 import type { Task } from '@/types'
-import { CATEGORY_CONFIG, DIFFICULTY_CONFIG, TIMING_CONFIG, formatExp } from '@/utils/task'
+import { CATEGORY_CONFIG, DIFFICULTY_CONFIG, formatExp, parseVariants } from '@/utils/task'
 
 interface Props {
   task: Task
@@ -15,24 +15,22 @@ interface Props {
 export default function TaskCard({ task, onComplete, onUndo }: Props) {
   const [loading, setLoading] = useState(false)
   const [undoing, setUndoing] = useState(false)
-  const [bothModalOpen, setBothModalOpen] = useState(false)
+  const [variantModalOpen, setVariantModalOpen] = useState(false)
   const isCompleted =
     task.type === 'weekly'                         ? !!task.completed_this_week :
     task.type === 'season' || task.type === 'once' ? !!task.completed_in_season :
     !!task.completed_today
   const category = CATEGORY_CONFIG[task.category]
   const difficulty = DIFFICULTY_CONFIG[task.difficulty]
-  const timing = task.timing ? TIMING_CONFIG[task.timing as keyof typeof TIMING_CONFIG] : null
 
-  // 早晚任务的半分值
-  const partialExp = Math.round(task.exp_reward / 2 * 10) / 10
+  // 完成方式（>=1 个则点击时弹窗选择）
+  const variants = useMemo(() => parseVariants(task.variants), [task.variants])
 
   const handleClick = async () => {
     if (isCompleted || loading) return
 
-    // timing=both 时弹选择弹窗
-    if (task.timing === 'both') {
-      showBothChoiceModal()
+    if (variants.length > 0) {
+      setVariantModalOpen(true)
       return
     }
 
@@ -56,8 +54,6 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
       setLoading(false)
     }
   }
-
-  const showBothChoiceModal = () => setBothModalOpen(true)
 
   const handleUndo = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -111,9 +107,12 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
           }}>
             {task.title}
           </span>
-          {timing && (
-            <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 20, background: '#f5f3ff', color: '#7c3aed', flexShrink: 0 }}>
-              {timing.icon} {timing.label}
+          {variants.length > 0 && (
+            <span
+              title="该任务有多种完成方式"
+              style={{ fontSize: 11, padding: '1px 6px', borderRadius: 20, background: '#f5f3ff', color: '#7c3aed', flexShrink: 0 }}
+            >
+              ✨ {variants.length} 种
             </span>
           )}
         </div>
@@ -131,7 +130,6 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
         </span>
         <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 20, color: difficulty.color, background: difficulty.bg, fontWeight: 500 }}>
           +{formatExp(task.exp_reward)}
-          {task.timing === 'both' && <span style={{ opacity: 0.6 }}>/{formatExp(partialExp)}</span>}
         </span>
       </div>
 
@@ -155,35 +153,32 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
         </button>
       )}
 
-      {/* 早晚完成选择弹窗，用 div 阻断冒泡到卡片的 onClick */}
+      {/* 完成方式选择弹窗（通用版），用 div 阻断冒泡到卡片的 onClick */}
       <div onClick={(e) => e.stopPropagation()}>
-      <Modal
-        title={`「${task.title}」完成情况`}
-        open={bothModalOpen}
-        onCancel={() => setBothModalOpen(false)}
-        footer={null}
-        centered
-      >
-        <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>
-          早晚都做了可以获得全部积分，只做了晚上获得一半积分。
-        </p>
-        <Space direction="vertical" style={{ width: '100%' }} size={10}>
-          <Button
-            block
-            type="primary"
-            onClick={() => { setBothModalOpen(false); doComplete() }}
-          >
-            ☀️🌙 早晚都完成 &nbsp;+{formatExp(task.exp_reward)} 分
-          </Button>
-          <Button
-            block
-            onClick={() => { setBothModalOpen(false); doComplete(partialExp) }}
-            style={{ color: '#7c3aed', borderColor: '#e4deff' }}
-          >
-            🌙 只做了晚上 &nbsp;+{formatExp(partialExp)} 分
-          </Button>
-        </Space>
-      </Modal>
+        <Modal
+          title={`「${task.title}」选择完成方式`}
+          open={variantModalOpen}
+          onCancel={() => setVariantModalOpen(false)}
+          footer={null}
+          centered
+        >
+          <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>
+            根据实际完成情况，选择对应的积分档位。
+          </p>
+          <Space direction="vertical" style={{ width: '100%' }} size={10}>
+            {variants.map((v, i) => (
+              <Button
+                key={i}
+                block
+                type={i === variants.length - 1 ? 'primary' : 'default'}
+                onClick={() => { setVariantModalOpen(false); doComplete(v.exp) }}
+                style={i === variants.length - 1 ? undefined : { color: '#7c3aed', borderColor: '#e4deff' }}
+              >
+                {v.icon ? `${v.icon} ` : ''}{v.label} &nbsp;+{formatExp(v.exp)} 分
+              </Button>
+            ))}
+          </Space>
+        </Modal>
       </div>
     </div>
   )

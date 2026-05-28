@@ -1,4 +1,4 @@
-import type { TaskCategory, TaskDifficulty, TaskTiming } from '@/types'
+import type { TaskCategory, TaskDifficulty, TaskVariant } from '@/types'
 
 export const CATEGORY_CONFIG: Record<TaskCategory, { label: string; color: string; bg: string; icon: string }> = {
   health: { label: '健康', color: '#16a34a', bg: '#dcfce7', icon: '🏃' },
@@ -13,18 +13,32 @@ export const DIFFICULTY_CONFIG: Record<TaskDifficulty, { label: string; color: s
   hard:   { label: '困难', color: '#dc2626', bg: '#fee2e2' },
 }
 
-export const TIMING_CONFIG: Record<TaskTiming, { label: string; icon: string }> = {
-  morning: { label: '早上',  icon: '🌅' },
-  evening: { label: '晚上',  icon: '🌙' },
-  both:    { label: '早晚',  icon: '☀️' },
-  out:     { label: '出门前', icon: '🚪' },
-  anytime: { label: '随时',  icon: '⏰' },
-}
+// 配置「完成方式」时可选的图标预设
+export const VARIANT_ICON_PRESETS = [
+  '🌅', '🌙', '☀️', '🌆', '🌃',
+  '⏰', '🚪', '🏃', '💼', '🍳',
+  '🍽️', '🥗', '💧', '✨', '🎯',
+  '⭐', '🔥', '💡', '📝', '🎵',
+]
 
-export const TIMING_OPTIONS = Object.entries(TIMING_CONFIG).map(([v, c]) => ({
-  value: v,
-  label: `${c.icon} ${c.label}`,
-}))
+export const MAX_VARIANTS = 4
+
+// 安全解析 task.variants（后端是 JSON 字符串），坏数据返回 []
+export function parseVariants(raw: string | undefined | null): TaskVariant[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(
+      (v): v is TaskVariant =>
+        v &&
+        typeof v.label === 'string' &&
+        typeof v.exp === 'number',
+    )
+  } catch {
+    return []
+  }
+}
 
 export function getDifficulty(exp: number): TaskDifficulty {
   if (exp <= 1) return 'easy'

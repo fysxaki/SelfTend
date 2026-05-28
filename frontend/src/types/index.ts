@@ -1,8 +1,14 @@
 export type TaskCategory = 'health' | 'work' | 'life' | 'mood'
 export type TaskType = 'daily' | 'weekly' | 'season' | 'once'
 export type TaskDifficulty = 'easy' | 'normal' | 'hard'
-export type TaskTiming = 'morning' | 'evening' | 'both' | 'out' | 'anytime'
 export type PrizeCategory = 'camera' | 'watch' | 'phone' | 'other'
+
+// 任务的「完成方式」选项。例如 洗脸 任务可以配 [早上 0.5, 晚上 0.5, 早晚 1.0]
+export interface TaskVariant {
+  label: string
+  icon?: string
+  exp: number
+}
 
 export interface Season {
   id: number
@@ -20,10 +26,11 @@ export interface Task {
   description: string
   category: TaskCategory
   type: TaskType
-  timing: TaskTiming
   difficulty: TaskDifficulty
   exp_reward: number
   sort_order: number
+  // 后端以 JSON 字符串存储；前端读写时序列化/反序列化
+  variants?: string
   completed_today?: boolean
   completed_this_week?: boolean
   completed_in_season?: boolean

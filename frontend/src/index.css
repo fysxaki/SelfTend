@@ -96,12 +96,29 @@ body {
 
 /* ── 侧边栏折叠（移动端）─────────────────────── */
 @media (max-width: 768px) {
-  /* 移动端侧边栏收窄为图标模式 */
-  .ant-layout-sider { width: 64px !important; min-width: 64px !important; max-width: 64px !important; }
-  .ant-layout-sider .font-script { display: none; }
-  .ant-layout-sider a span:last-child { display: none; }
-  .ant-layout-sider a { justify-content: center !important; padding: 10px 0 !important; }
-  .ant-layout > .ant-layout { margin-left: 64px !important; }
+  /* 移动端侧边栏：图标 + 小字 标签竖排，确保可见 */
+  .ant-layout-sider { width: 72px !important; min-width: 72px !important; max-width: 72px !important; }
+  .ant-layout-sider .font-script { font-size: 16px !important; }
+  .ant-layout > .ant-layout { margin-left: 72px !important; }
+
+  /* 导航项：竖向排列，图标变大，标签缩小到 10px */
+  .ant-layout-sider a {
+    flex-direction: column !important;
+    gap: 3px !important;
+    padding: 9px 4px !important;
+    text-align: center !important;
+    line-height: 1.2 !important;
+  }
+  /* 第一个 span 是图标外壳，放大 */
+  .ant-layout-sider a > span:first-child { font-size: 20px !important; }
+  /* 第二个 span 是文字标签，缩小但保留显示 */
+  .ant-layout-sider a > span:last-child {
+    font-size: 10px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
 }
 
 /* ── 移动端响应式 ─────────────────────────────── */

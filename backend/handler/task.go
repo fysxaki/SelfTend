@@ -210,10 +210,10 @@ func InheritTasks(db *gorm.DB) gin.HandlerFunc {
 				Description: t.Description,
 				Category:    t.Category,
 				Type:        t.Type,
-				Timing:      t.Timing,
 				Difficulty:  t.Difficulty,
 				ExpReward:   t.ExpReward,
 				SortOrder:   t.SortOrder,
+				Variants:    t.Variants,
 			}
 			db.Create(&newTask)
 			created = append(created, newTask)

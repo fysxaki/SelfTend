@@ -16,12 +16,15 @@ type Task struct {
 	SeasonID    uint    `json:"season_id"`
 	Title       string  `json:"title"`
 	Description string  `json:"description"`
-	Category    string  `json:"category"`  // health / work / life / mood
-	Type        string  `json:"type"`      // daily / weekly / season
-	Timing      string  `json:"timing"`    // morning / evening / both / out / anytime
+	Category    string  `json:"category"`   // health / work / life / mood
+	Type        string  `json:"type"`       // daily / weekly / season / once
 	Difficulty  string  `json:"difficulty"` // easy / normal / hard
 	ExpReward   float64 `json:"exp_reward"`
 	SortOrder   int     `json:"sort_order"`
+	// Variants 完成方式可选配置（JSON 字符串）。
+	// 格式：[{"label":"早上","icon":"🌅","exp":0.5}, ...]
+	// 留空或 [] 表示单击直接完成；非空则点击时弹窗选择。
+	Variants string `json:"variants" gorm:"type:text;default:''"`
 }
 
 type TaskLog struct {

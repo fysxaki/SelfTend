@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
+	"math"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -36,6 +38,9 @@ func main() {
 
 	// 仅初始化 UserStats（业务必须存在的系统记录）
 	initUserStats(db)
+
+	// 一次性迁移：把老的 timing='both' 任务自动转成 variants 配置
+	migrateTimingBothToVariants(db)
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
@@ -106,5 +111,51 @@ func initUserStats(db *gorm.DB) {
 	db.Model(&model.UserStats{}).Count(&count)
 	if count == 0 {
 		db.Create(&model.UserStats{Level: 1})
+	}
+}
+
+// migrateTimingBothToVariants 把老的 timing='both' 任务自动生成对应的 variants 配置
+// 只在 timing 列还存在且 variants 为空时执行。执行后把 timing 列丢掉。
+func migrateTimingBothToVariants(db *gorm.DB) {
+	migrator := db.Migrator()
+	// 表里没有 timing 列就跳过（已经迁移过了）
+	if !migrator.HasColumn(&model.Task{}, "timing") {
+		return
+	}
+
+	type legacyTask struct {
+		ID        uint
+		Timing    string
+		ExpReward float64
+		Variants  string
+	}
+	var rows []legacyTask
+	db.Table("tasks").Select("id, timing, exp_reward, variants").Scan(&rows)
+
+	for _, r := range rows {
+		// 已经有 variants 就不动
+		if r.Variants != "" && r.Variants != "[]" {
+			continue
+		}
+		if r.Timing != "both" {
+			continue
+		}
+		// 早晚都做拿全分，单做一半。保留一位小数。
+		half := math.Round(r.ExpReward/2*10) / 10
+		variants := []map[string]any{
+			{"label": "早上", "icon": "🌅", "exp": half},
+			{"label": "晚上", "icon": "🌙", "exp": half},
+			{"label": "早晚都做", "icon": "☀️", "exp": r.ExpReward},
+		}
+		buf, _ := json.Marshal(variants)
+		db.Table("tasks").Where("id = ?", r.ID).Update("variants", string(buf))
+		log.Printf("[migrate] task#%d timing=both → variants %s", r.ID, buf)
+	}
+
+	// 丢掉 timing 列
+	if err := migrator.DropColumn(&model.Task{}, "timing"); err != nil {
+		log.Printf("[migrate] drop timing column failed (可忽略): %v", err)
+	} else {
+		log.Println("[migrate] dropped task.timing column")
 	}
 }

@@ -1,11 +1,11 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
-import { Button, Form, Input, InputNumber, Modal, Select, Table, Tag, message } from 'antd'
+import { DeleteOutlined, EditOutlined, MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
+import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, message } from 'antd'
 import { useEffect, useState } from 'react'
 import { createTask, deleteTask, getTasks, updateTask } from '@/api'
 import { FloatingDecorations } from '@/components/Decorations'
 import { useAppStore } from '@/stores/useAppStore'
-import type { Task, TaskCategory, TaskDifficulty, TaskType } from '@/types'
-import { CATEGORY_CONFIG, DIFFICULTY_CONFIG, TIMING_CONFIG, TIMING_OPTIONS } from '@/utils/task'
+import type { Task, TaskCategory, TaskDifficulty, TaskType, TaskVariant } from '@/types'
+import { CATEGORY_CONFIG, DIFFICULTY_CONFIG, MAX_VARIANTS, VARIANT_ICON_PRESETS, parseVariants } from '@/utils/task'
 
 const TYPE_OPTIONS = [
   { label: '每日任务', value: 'daily' },
@@ -36,13 +36,14 @@ export default function Tasks() {
   const openCreate = () => {
     setEditing(null)
     form.resetFields()
-    form.setFieldsValue({ type: 'daily', category: 'health', timing: 'anytime', difficulty: 'easy', exp_reward: 1 })
+    form.setFieldsValue({ type: 'daily', category: 'health', difficulty: 'easy', exp_reward: 1, variants: [] })
     setModalOpen(true)
   }
 
   const openEdit = (task: Task) => {
     setEditing(task)
-    form.setFieldsValue(task)
+    // variants 后端是 JSON 字符串，表单里用对象数组
+    form.setFieldsValue({ ...task, variants: parseVariants(task.variants) })
     setModalOpen(true)
   }
 
@@ -54,11 +55,17 @@ export default function Tasks() {
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
+    // 把表单里的 variants 对象数组序列化成 JSON 字符串（后端约定）
+    const variants = (values.variants as TaskVariant[] | undefined) ?? []
+    const payload = {
+      ...values,
+      variants: variants.length > 0 ? JSON.stringify(variants) : '',
+    }
     if (editing) {
-      await updateTask(editing.id, values)
+      await updateTask(editing.id, payload)
       message.success('已更新')
     } else {
-      await createTask({ ...values, season_id: currentSeason!.id, sort_order: tasks.length })
+      await createTask({ ...payload, season_id: currentSeason!.id, sort_order: tasks.length })
       message.success('已添加')
     }
     setModalOpen(false)
@@ -69,21 +76,30 @@ export default function Tasks() {
     {
       title: '任务名称',
       dataIndex: 'title',
-      width: 160,
+      width: 200,
       render: (title: string, record: Task) => {
-        const timing = record.timing ? TIMING_CONFIG[record.timing as keyof typeof TIMING_CONFIG] : null
+        const vs = parseVariants(record.variants)
         return (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
               <span style={{ fontWeight: 500, color: '#1e1826' }}>{title}</span>
-              {timing && (
+              {vs.length > 0 && (
                 <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 20, background: '#f5f3ff', color: '#7c3aed' }}>
-                  {timing.icon} {timing.label}
+                  ✨ {vs.length} 种方式
                 </span>
               )}
             </div>
             {record.description && (
               <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{record.description}</div>
+            )}
+            {vs.length > 0 && (
+              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+                {vs.map((v, i) => (
+                  <span key={i} style={{ marginRight: 6 }}>
+                    {v.icon ? `${v.icon} ` : ''}{v.label}（{v.exp % 1 === 0 ? v.exp : v.exp.toFixed(1)}）
+                  </span>
+                ))}
+              </div>
             )}
           </div>
         )
@@ -198,16 +214,10 @@ export default function Tasks() {
             <Input placeholder="例：早晚各一次" />
           </Form.Item>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
             <Form.Item name="type" label="类型" rules={[{ required: true }]}>
               <Select options={TYPE_OPTIONS} />
             </Form.Item>
-            <Form.Item name="timing" label="执行时机" rules={[{ required: true }]}>
-              <Select options={TIMING_OPTIONS} />
-            </Form.Item>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             <Form.Item name="category" label="分类" rules={[{ required: true }]}>
               <Select options={Object.entries(CATEGORY_CONFIG).map(([v, c]) => ({ value: v, label: `${c.icon} ${c.label}` }))} />
             </Form.Item>
@@ -218,6 +228,69 @@ export default function Tasks() {
               <InputNumber min={0.5} max={999} step={0.5} style={{ width: '100%' }} />
             </Form.Item>
           </div>
+
+          {/* 完成方式（可选）：配置后，点击任务时弹窗按方式给分 */}
+          <Form.List name="variants">
+            {(fields, { add, remove }) => (
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, color: '#1e1826', fontWeight: 500 }}>
+                    完成方式（可选 · 最多 {MAX_VARIANTS} 种）
+                  </span>
+                  <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                    例：早上(0.5) / 晚上(0.5) / 早晚都做(1)
+                  </span>
+                </div>
+
+                {fields.map((field) => (
+                  <Space.Compact key={field.key} style={{ display: 'flex', marginBottom: 6 }}>
+                    <Form.Item
+                      name={[field.name, 'icon']}
+                      noStyle
+                    >
+                      <Select
+                        allowClear
+                        placeholder="图标"
+                        style={{ width: 90 }}
+                        options={VARIANT_ICON_PRESETS.map((emoji) => ({ value: emoji, label: emoji }))}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name={[field.name, 'label']}
+                      noStyle
+                      rules={[{ required: true, message: '请填名称' }]}
+                    >
+                      <Input placeholder="名称（如 早上）" style={{ flex: 1 }} />
+                    </Form.Item>
+                    <Form.Item
+                      name={[field.name, 'exp']}
+                      noStyle
+                      rules={[{ required: true, message: '请填积分' }]}
+                    >
+                      <InputNumber min={0} max={999} step={0.5} placeholder="积分" style={{ width: 110 }} />
+                    </Form.Item>
+                    <Button
+                      type="text"
+                      icon={<MinusCircleOutlined />}
+                      onClick={() => remove(field.name)}
+                      danger
+                    />
+                  </Space.Compact>
+                ))}
+
+                {fields.length < MAX_VARIANTS && (
+                  <Button
+                    type="dashed"
+                    onClick={() => add({ icon: '', label: '', exp: 0.5 })}
+                    icon={<PlusOutlined />}
+                    block
+                  >
+                    添加一种完成方式
+                  </Button>
+                )}
+              </div>
+            )}
+          </Form.List>
         </Form>
       </Modal>
     </div>
