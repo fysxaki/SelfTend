@@ -84,7 +84,7 @@ export default function Tasks() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
               <span style={{ fontWeight: 500, color: '#1e1826' }}>{title}</span>
               {vs.length > 0 && (
-                <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 20, background: '#f5f3ff', color: '#7c3aed' }}>
+                <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 20, background: '#f7faf8', color: '#4a8a83' }}>
                   ✨ {vs.length} 种方式
                 </span>
               )}
@@ -149,7 +149,7 @@ export default function Tasks() {
       dataIndex: 'exp_reward',
       width: 70,
       render: (exp: number) => (
-        <span style={{ color: '#7c3aed', fontWeight: 600 }}>
+        <span style={{ color: '#4a8a83', fontWeight: 600 }}>
           +{exp % 1 === 0 ? exp : exp.toFixed(1)}
         </span>
       ),
@@ -159,7 +159,7 @@ export default function Tasks() {
       width: 72,
       render: (_: unknown, record: Task) => (
         <div style={{ display: 'flex', gap: 4 }}>
-          <Button type="text" icon={<EditOutlined />} size="small" onClick={() => openEdit(record)} style={{ color: '#7c3aed' }} />
+          <Button type="text" icon={<EditOutlined />} size="small" onClick={() => openEdit(record)} style={{ color: '#4a8a83' }} />
           <Button type="text" icon={<DeleteOutlined />} size="small" danger onClick={() => handleDelete(record.id)} />
         </div>
       ),
@@ -179,14 +179,14 @@ export default function Tasks() {
       <FloatingDecorations />
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16, position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-          <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#5b21b6' }}>任务管理</span>
-          <span className="font-script" style={{ fontSize: 26, color: '#a78bfa' }}>Tasks</span>
+          <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#2f5d59' }}>任务管理</span>
+          <span className="font-script" style={{ fontSize: 26, color: '#6ba39d' }}>Tasks</span>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建任务</Button>
       </div>
 
       {/* 横向可滚动表格 */}
-      <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #e4deff', overflow: 'hidden' }}>
+      <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid #c8dcd6', overflow: 'hidden' }}>
         <Table
           dataSource={tasks}
           columns={columns}

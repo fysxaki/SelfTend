@@ -199,10 +199,10 @@ export default function ReviewPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 16, flexShrink: 0, position: 'relative', zIndex: 1 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            <span className="title-highlight" style={{ fontSize: 17, fontWeight: 700, color: '#5b21b6' }}>
-              <BookOutlined style={{ marginRight: 6, color: '#a78bfa' }} />每日复盘
+            <span className="title-highlight" style={{ fontSize: 17, fontWeight: 700, color: '#2f5d59' }}>
+              <BookOutlined style={{ marginRight: 6, color: '#6ba39d' }} />每日复盘
             </span>
-            <span className="font-script" style={{ fontSize: 24, color: '#a78bfa' }}>Review</span>
+            <span className="font-script" style={{ fontSize: 24, color: '#6ba39d' }}>Review</span>
           </div>
           <Text type="secondary" style={{ fontSize: 12 }}>
             {dayjs().format('YYYY年MM月DD日 dddd')}
@@ -263,7 +263,7 @@ export default function ReviewPage() {
             <Text type="secondary" style={{ fontSize: 12 }}>还没有复盘记录</Text>
           ) : (
             history.map((log) => (
-              <div key={log.id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #f0eeff' }}>
+              <div key={log.id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #f4f9f7' }}>
                 <Text type="secondary" style={{ fontSize: 11 }}>{log.date}</Text>
                 <Paragraph style={{ fontSize: 12, margin: '4px 0 0', whiteSpace: 'pre-wrap' }}>
                   {log.summary}
@@ -292,7 +292,7 @@ export default function ReviewPage() {
       </div>
 
       {/* 输入区 */}
-      <div style={{ flexShrink: 0, paddingTop: 12, borderTop: '1px solid #e4deff' }}>
+      <div style={{ flexShrink: 0, paddingTop: 12, borderTop: '1px solid #c8dcd6' }}>
         <div style={{ display: 'flex', gap: 8 }}>
           <Input.TextArea
             value={input}
@@ -345,9 +345,9 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           maxWidth: '80%',
           padding: '10px 14px',
           borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-          background: isUser ? '#7c3aed' : '#fff',
+          background: isUser ? '#4a8a83' : '#fff',
           color: isUser ? '#fff' : '#1e1826',
-          border: isUser ? 'none' : '1.5px solid #e4deff',
+          border: isUser ? 'none' : '1.5px solid #c8dcd6',
           fontSize: 14,
           lineHeight: 1.6,
           boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
@@ -356,7 +356,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
         {isUser ? (
           <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
         ) : !msg.content ? (
-          <span style={{ color: '#a78bfa', fontSize: 13 }}>复盘助手思考中<span className="thinking-dots">...</span></span>
+          <span style={{ color: '#6ba39d', fontSize: 13 }}>复盘助手思考中<span className="thinking-dots">...</span></span>
         ) : (
           <ReactMarkdown
             components={{
@@ -364,15 +364,15 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
               ul: ({ children }) => <ul style={{ margin: '4px 0', paddingLeft: 20 }}>{children}</ul>,
               ol: ({ children }) => <ol style={{ margin: '4px 0', paddingLeft: 20 }}>{children}</ol>,
               li: ({ children }) => <li style={{ margin: '2px 0' }}>{children}</li>,
-              strong: ({ children }) => <strong style={{ color: '#5b21b6' }}>{children}</strong>,
+              strong: ({ children }) => <strong style={{ color: '#2f5d59' }}>{children}</strong>,
               h3: ({ children }) => <h3 style={{ margin: '8px 0 4px', fontSize: 15 }}>{children}</h3>,
               h4: ({ children }) => <h4 style={{ margin: '6px 0 2px', fontSize: 14 }}>{children}</h4>,
               code: ({ children }) => (
-                <code style={{ background: '#f0eeff', borderRadius: 4, padding: '1px 5px', fontSize: 13 }}>
+                <code style={{ background: '#f4f9f7', borderRadius: 4, padding: '1px 5px', fontSize: 13 }}>
                   {children}
                 </code>
               ),
-              hr: () => <hr style={{ border: 'none', borderTop: '1px solid #e4deff', margin: '8px 0' }} />,
+              hr: () => <hr style={{ border: 'none', borderTop: '1px solid #c8dcd6', margin: '8px 0' }} />,
             }}
           >
             {msg.content}

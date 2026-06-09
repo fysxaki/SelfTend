@@ -20,7 +20,7 @@ import type { AnalyticsItem } from '@/types'
 
 const { Text } = Typography
 
-const ENERGY_COLOR = '#a78bfa'
+const ENERGY_COLOR = '#6ba39d'
 const SLEEP_COLOR = '#38bdf8'
 const PENALTY_COLOR = '#f87171'
 
@@ -183,10 +183,10 @@ export default function AnalyticsPage() {
       >
         <div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-            <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#5b21b6' }}>
-              <BarChartOutlined style={{ marginRight: 6, color: '#a78bfa' }} />数据分析
+            <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#2f5d59' }}>
+              <BarChartOutlined style={{ marginRight: 6, color: '#6ba39d' }} />数据分析
             </span>
-            <span className="font-script" style={{ fontSize: 26, color: '#a78bfa' }}>Analytics</span>
+            <span className="font-script" style={{ fontSize: 26, color: '#6ba39d' }}>Analytics</span>
           </div>
           <Text type="secondary" style={{ fontSize: 13 }}>
             看看睡得多是否真的让你更有能量
@@ -236,7 +236,7 @@ export default function AnalyticsPage() {
                 flex: 1,
                 textAlign: 'center',
                 background: '#ffffff',
-                border: '1px solid #e4deff',
+                border: '1px solid #c8dcd6',
                 borderLeft: `4px solid ${item.accentColor}`,
                 boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
               }}
@@ -277,7 +277,7 @@ export default function AnalyticsPage() {
           >
             <ResponsiveContainer width="100%" height={280}>
               <ComposedChart data={lineData} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e4deff" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#c8dcd6" />
                 <XAxis
                   dataKey="date"
                   tick={{ fontSize: 11, fill: '#9ca3af' }}
@@ -349,7 +349,7 @@ export default function AnalyticsPage() {
             ) : (
               <ResponsiveContainer width="100%" height={260}>
                 <ScatterChart margin={{ top: 8, right: 24, left: 0, bottom: 16 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e4deff" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#c8dcd6" />
                   <XAxis
                     dataKey="x"
                     type="number"

@@ -98,7 +98,7 @@ export default function Rewards() {
         <div style={{ marginTop: 8 }}>
           <p style={{ color: '#6b7280' }}>
             将消耗{' '}
-            <strong style={{ color: '#7c3aed' }}>{formatExp(prize.cost)} 积分</strong>
+            <strong style={{ color: '#4a8a83' }}>{formatExp(prize.cost)} 积分</strong>
           </p>
           <p style={{ color: '#6b7280', marginTop: 4 }}>
             兑换后积分不可退回，确定继续吗？
@@ -138,14 +138,14 @@ export default function Rewards() {
 
       {/* 页面标题 */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16, position: 'relative', zIndex: 1 }}>
-        <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#5b21b6' }}>奖励</span>
-        <span className="font-script" style={{ fontSize: 26, color: '#a78bfa' }}>Rewards</span>
+        <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#2f5d59' }}>奖励</span>
+        <span className="font-script" style={{ fontSize: 26, color: '#6ba39d' }}>Rewards</span>
       </div>
 
       {/* 顶部积分卡 */}
       <div
         style={{
-          background: 'linear-gradient(135deg, #f9a8d4 0%, #c084fc 50%, #a78bfa 100%)',
+          background: 'linear-gradient(135deg, #9bc9c3 0%, #6ba39d 50%, #3d6d68 100%)',
           borderRadius: 20,
           padding: '24px 28px',
           marginBottom: 28,
@@ -154,18 +154,18 @@ export default function Rewards() {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 16,
-          boxShadow: '0 4px 18px rgba(192, 132, 252, 0.25)',
+          boxShadow: '0 4px 18px rgba(74, 138, 131, 0.3)',
           position: 'relative',
           zIndex: 1,
         }}
       >
         <div style={{ minWidth: 0 }}>
-          <div style={{ color: '#ddd6fe', fontSize: 13, marginBottom: 6 }}>可用积分</div>
+          <div style={{ color: '#f4f9f7', fontSize: 13, marginBottom: 6, opacity: 0.9 }}>可用积分</div>
           <div style={{ fontSize: 48, fontWeight: 800, lineHeight: 1, letterSpacing: '-1px' }}>
             {formatExp(spendable)}
           </div>
-          <div style={{ color: '#c4b5fd', fontSize: 13, marginTop: 10 }}>
-            累计获得 <span style={{ color: '#fff', fontWeight: 600 }}>{formatExp(total)}</span> 积分 · Lv.<span style={{ color: '#fff', fontWeight: 600 }}>{level}</span>
+          <div style={{ color: '#e6f1ee', fontSize: 13, marginTop: 10 }}>
+            累计获得 <span style={{ color: '#fff', fontWeight: 700 }}>{formatExp(total)}</span> 积分 · Lv.<span style={{ color: '#fff', fontWeight: 700 }}>{level}</span>
           </div>
         </div>
         <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
@@ -207,14 +207,14 @@ export default function Rewards() {
                       style={{
                         background: prize.redeemed ? '#f9fafb' : '#ffffff',
                         border: `1.5px solid ${
-                          prize.redeemed ? '#d1fae5' : canAfford ? '#7c3aed' : '#e4deff'
+                          prize.redeemed ? '#d1fae5' : canAfford ? '#4a8a83' : '#c8dcd6'
                         }`,
                         borderRadius: 14,
                         padding: 18,
                         position: 'relative',
                         opacity: prize.redeemed ? 0.75 : 1,
                         boxShadow: canAfford && !prize.redeemed
-                          ? '0 0 0 3px rgba(124,58,237,0.1)'
+                          ? '0 0 0 3px rgba(74,138,131,0.1)'
                           : 'none',
                       }}
                     >
@@ -224,7 +224,7 @@ export default function Rewards() {
                           <button
                             onClick={(e) => openEdit(prize, e)}
                             style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#9ca3af', padding: 4, borderRadius: 6 }}
-                            onMouseEnter={(e) => { e.currentTarget.style.color = '#7c3aed' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.color = '#4a8a83' }}
                             onMouseLeave={(e) => { e.currentTarget.style.color = '#9ca3af' }}
                           >
                             <EditOutlined />
@@ -258,11 +258,11 @@ export default function Rewards() {
                             <span>{formatExp(spendable)} / {formatExp(prize.cost)} 积分</span>
                             <span>{Math.floor(progress)}%</span>
                           </div>
-                          <div style={{ height: 6, background: '#ede9fe', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ height: 6, background: '#e6f1ee', borderRadius: 3, overflow: 'hidden' }}>
                             <div style={{
                               height: '100%',
                               width: `${progress}%`,
-                              background: canAfford ? '#7c3aed' : '#a78bfa',
+                              background: canAfford ? '#4a8a83' : '#6ba39d',
                               borderRadius: 3,
                               transition: 'width 0.4s ease',
                             }} />
@@ -272,7 +272,7 @@ export default function Rewards() {
 
                       {/* 积分 + 兑换 */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: 18, fontWeight: 700, color: prize.redeemed ? '#16a34a' : canAfford ? '#7c3aed' : '#a78bfa' }}>
+                        <span style={{ fontSize: 18, fontWeight: 700, color: prize.redeemed ? '#16a34a' : canAfford ? '#4a8a83' : '#6ba39d' }}>
                           {prize.redeemed ? '✓ 已兑换' : `${formatExp(prize.cost)} 积分`}
                         </span>
                         {!prize.redeemed && (
@@ -282,7 +282,7 @@ export default function Rewards() {
                             icon={canAfford ? <ShoppingOutlined /> : <LockOutlined />}
                             disabled={!canAfford}
                             onClick={() => handleRedeem(prize)}
-                            style={canAfford ? {} : { color: '#c4b5fd', borderColor: '#e4deff' }}
+                            style={canAfford ? {} : { color: '#b8d8d3', borderColor: '#c8dcd6' }}
                           >
                             {canAfford ? '立即兑换' : `还差 ${formatExp(prize.cost - spendable)} 分`}
                           </Button>

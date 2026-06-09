@@ -9,7 +9,7 @@ type DecoProps = {
   className?: string
 }
 
-export function StarOutline({ size = 28, color = '#c4b5fd', strokeWidth = 2.4, style, className }: DecoProps) {
+export function StarOutline({ size = 28, color = '#b8d8d3', strokeWidth = 2.4, style, className }: DecoProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style} className={className}>
       <path
@@ -36,7 +36,7 @@ type LineProps = {
   className?: string
 }
 
-export function Squiggle({ width = 60, color = '#a78bfa', strokeWidth = 3, style, className }: LineProps) {
+export function Squiggle({ width = 60, color = '#6ba39d', strokeWidth = 3, style, className }: LineProps) {
   return (
     <svg width={width} height={width / 4} viewBox="0 0 60 15" fill="none" style={style} className={className}>
       <path
@@ -86,11 +86,11 @@ export function FloatingDecorations() {
         overflow: 'hidden',
       }}
     >
-      <StarOutline size={32} color="#c4b5fd"
+      <StarOutline size={32} color="#b8d8d3"
         style={{ position: 'absolute', top: '5%',  left: '4%' }} className="deco-float" />
       <StarOutline size={22} color="#fbcfe8"
         style={{ position: 'absolute', top: '18%', right: '6%' }} className="deco-float" />
-      <StarOutline size={26} color="#a7f3d0"
+      <StarOutline size={26} color="#c8dcd6"
         style={{ position: 'absolute', top: '52%', left: '7%' }} className="deco-float" />
       <StarOutline size={20} color="#fde047"
         style={{ position: 'absolute', top: '78%', right: '5%' }} className="deco-float" />
@@ -99,22 +99,22 @@ export function FloatingDecorations() {
         style={{ position: 'absolute', top: '10%', right: '14%' }} className="deco-pulse" />
       <HeartFill size={16} color="#bae6fd"
         style={{ position: 'absolute', top: '38%', left: '3%' }} className="deco-pulse" />
-      <HeartFill size={18} color="#a7f3d0"
+      <HeartFill size={18} color="#c8dcd6"
         style={{ position: 'absolute', top: '68%', right: '12%' }} className="deco-pulse" />
       <HeartFill size={14} color="#fef08a"
         style={{ position: 'absolute', top: '88%', left: '8%' }} className="deco-pulse" />
 
-      <Squiggle width={55} color="#a78bfa"
+      <Squiggle width={55} color="#6ba39d"
         style={{ position: 'absolute', top: '26%', left: '12%', transform: 'rotate(-12deg)' }} />
       <Squiggle width={45} color="#f0abfc"
         style={{ position: 'absolute', top: '60%', right: '4%', transform: 'rotate(20deg)' }} />
 
-      <Zigzag width={48} color="#a7f3d0"
+      <Zigzag width={48} color="#c8dcd6"
         style={{ position: 'absolute', top: '44%', right: '10%' }} />
       <Zigzag width={36} color="#fbcfe8"
         style={{ position: 'absolute', top: '82%', left: '15%', transform: 'rotate(-20deg)' }} />
 
-      <DotsCluster size={50} color="#c4b5fd"
+      <DotsCluster size={50} color="#b8d8d3"
         style={{ position: 'absolute', top: '14%', left: '20%' }} />
       <DotsCluster size={40} color="#bae6fd"
         style={{ position: 'absolute', top: '72%', left: '24%' }} />

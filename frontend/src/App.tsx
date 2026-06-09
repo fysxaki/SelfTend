@@ -56,7 +56,7 @@ function AppLayout() {
 
   if (!initialized) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100svh', background: '#f0eeff' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100svh', background: '#f4f9f7' }}>
         <Spin size="large" />
       </div>
     )
@@ -67,15 +67,15 @@ function AppLayout() {
       <Sider
         width={200}
         style={{
-          background: '#2e1f72',
-          borderRight: '1px solid #3d2a8a',
+          background: '#2c4d4a',
+          borderRight: '1px solid #2f5d59',
           position: 'fixed',
           left: 0, top: 0,
           height: '100vh',
           zIndex: 100,
         }}
       >
-        <div className="flex items-center h-14 px-5" style={{ borderBottom: '1px solid #3d2a8a' }}>
+        <div className="flex items-center h-14 px-5" style={{ borderBottom: '1px solid #2f5d59' }}>
           <span className="font-script" style={{ color: '#fde047', fontSize: 22, lineHeight: 1 }}>SelfTend</span>
         </div>
         <div className="flex flex-col gap-1 pt-3 px-3">
@@ -92,7 +92,7 @@ function AppLayout() {
                   fontWeight: active ? 600 : 400,
                   textDecoration: 'none', transition: 'all 0.15s',
                   background: active ? 'rgba(255,255,255,0.15)' : 'transparent',
-                  color: active ? '#ffffff' : '#c4b5fd',
+                  color: active ? '#ffffff' : '#b8d8d3',
                 }}
               >
                 <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
@@ -132,16 +132,16 @@ export default function App() {
       theme={{
         algorithm: theme.defaultAlgorithm,
         token: {
-          colorPrimary: '#7c3aed',
+          colorPrimary: '#4a8a83',
           colorBgBase: '#ffffff',
           colorBgContainer: '#ffffff',
           colorText: '#1e1826',
-          colorBorder: '#e4deff',
+          colorBorder: '#c8dcd6',
           borderRadius: 10,
           fontFamily: 'system-ui, -apple-system, sans-serif',
         },
         components: {
-          Table: { headerBg: '#f5f3ff', rowHoverBg: '#faf8ff' },
+          Table: { headerBg: '#f7faf8', rowHoverBg: '#faf8ff' },
           Modal: { contentBg: '#ffffff', headerBg: '#ffffff' },
         },
       }}

@@ -76,24 +76,24 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
         display: 'flex', alignItems: 'center', gap: 10,
         padding: '10px 14px', borderRadius: 12,
         background: isCompleted ? '#faf8ff' : '#ffffff',
-        border: '1.5px solid #e4deff',
+        border: '1.5px solid #c8dcd6',
         opacity: isCompleted ? 0.7 : 1,
         cursor: isCompleted ? 'default' : 'pointer',
         transition: 'all 0.15s',
-        boxShadow: isCompleted ? 'none' : '0 1px 4px rgba(124,58,237,0.05)',
-        borderLeft: `4px solid ${isCompleted ? '#c4b5fd' : category.color}`,
+        boxShadow: isCompleted ? 'none' : '0 1px 4px rgba(74,138,131,0.05)',
+        borderLeft: `4px solid ${isCompleted ? '#b8d8d3' : category.color}`,
       }}
     >
       {/* 完成圆圈 */}
       <div style={{
         width: 26, height: 26, flexShrink: 0, borderRadius: '50%',
-        border: `2px solid ${isCompleted ? '#7c3aed' : '#d1d5db'}`,
-        background: isCompleted ? '#ede9fe' : 'transparent',
+        border: `2px solid ${isCompleted ? '#4a8a83' : '#d1d5db'}`,
+        background: isCompleted ? '#e6f1ee' : 'transparent',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: isCompleted ? '#7c3aed' : 'transparent',
+        color: isCompleted ? '#4a8a83' : 'transparent',
         fontSize: 11, transition: 'all 0.15s',
       }}>
-        {loading ? <LoadingOutlined style={{ color: '#7c3aed' }} /> : isCompleted ? <CheckOutlined /> : null}
+        {loading ? <LoadingOutlined style={{ color: '#4a8a83' }} /> : isCompleted ? <CheckOutlined /> : null}
       </div>
 
       {/* 内容 */}
@@ -110,7 +110,7 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
           {variants.length > 0 && (
             <span
               title="该任务有多种完成方式"
-              style={{ fontSize: 11, padding: '1px 6px', borderRadius: 20, background: '#f5f3ff', color: '#7c3aed', flexShrink: 0 }}
+              style={{ fontSize: 11, padding: '1px 6px', borderRadius: 20, background: '#f7faf8', color: '#4a8a83', flexShrink: 0 }}
             >
               ✨ {variants.length} 种
             </span>
@@ -141,13 +141,13 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
           title="撤销完成"
           style={{
             flexShrink: 0, width: 26, height: 26,
-            border: '1px solid #e4deff', borderRadius: 8,
+            border: '1px solid #c8dcd6', borderRadius: 8,
             background: 'transparent', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#9ca3af', fontSize: 12, transition: 'all 0.15s',
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.borderColor = '#7c3aed' }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.borderColor = '#e4deff' }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = '#4a8a83'; e.currentTarget.style.borderColor = '#4a8a83' }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.borderColor = '#c8dcd6' }}
         >
           {undoing ? <LoadingOutlined /> : <UndoOutlined />}
         </button>
@@ -172,7 +172,7 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
                 block
                 type={i === variants.length - 1 ? 'primary' : 'default'}
                 onClick={() => { setVariantModalOpen(false); doComplete(v.exp) }}
-                style={i === variants.length - 1 ? undefined : { color: '#7c3aed', borderColor: '#e4deff' }}
+                style={i === variants.length - 1 ? undefined : { color: '#4a8a83', borderColor: '#c8dcd6' }}
               >
                 {v.icon ? `${v.icon} ` : ''}{v.label} &nbsp;+{formatExp(v.exp)} 分
               </Button>

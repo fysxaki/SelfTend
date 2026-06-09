@@ -80,7 +80,7 @@ export default function Dashboard() {
   if (!currentSeason) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: 12 }}>
-        <TrophyOutlined style={{ fontSize: 56, color: '#a78bfa' }} />
+        <TrophyOutlined style={{ fontSize: 56, color: '#6ba39d' }} />
         <p style={{ color: '#6b7280', fontSize: 16 }}>还没有进行中的赛季</p>
         <p style={{ color: '#9ca3af', fontSize: 13 }}>前往「赛季」页面创建第一个赛季</p>
       </div>
@@ -107,46 +107,46 @@ export default function Dashboard() {
       <div
         className="season-banner"
         style={{
-          background: 'linear-gradient(135deg, #f9a8d4 0%, #c084fc 50%, #a78bfa 100%)',
+          background: 'linear-gradient(135deg, #9bc9c3 0%, #6ba39d 50%, #3d6d68 100%)',
           borderRadius: 20, padding: '18px 22px', marginBottom: 16,
           color: '#fff', display: 'flex', justifyContent: 'space-between',
           alignItems: 'center', gap: 12,
-          boxShadow: '0 4px 18px rgba(192, 132, 252, 0.25)',
+          boxShadow: '0 4px 18px rgba(74, 138, 131, 0.3)',
           position: 'relative', zIndex: 1,
         }}
       >
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 11, color: '#ddd6fe', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>当前赛季</div>
+          <div style={{ fontSize: 11, color: '#f4f9f7', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2, opacity: 0.9 }}>当前赛季</div>
           <div className="season-banner-title" style={{ fontSize: 20, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {currentSeason.name}
           </div>
-          <div style={{ fontSize: 12, color: '#c4b5fd', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ fontSize: 12, color: '#e6f1ee', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {currentSeason.theme}
           </div>
         </div>
-        <div style={{ textAlign: 'right', fontSize: 12, color: '#c4b5fd', flexShrink: 0 }}>
+        <div style={{ textAlign: 'right', fontSize: 12, color: '#e6f1ee', flexShrink: 0 }}>
           <div>{dayjs(currentSeason.start_date).format('MM/DD')} — {dayjs(currentSeason.end_date).format('MM/DD')}</div>
-          <div style={{ marginTop: 2 }}>剩余 <span style={{ color: '#fff', fontWeight: 600 }}>{daysLeft}</span> 天</div>
+          <div style={{ marginTop: 2 }}>剩余 <span style={{ color: '#fff', fontWeight: 700 }}>{daysLeft}</span> 天</div>
         </div>
       </div>
 
       {/* 三栏统计 */}
       {levelInfo && stats && (
         <div className="stats-grid" style={{ position: 'relative', zIndex: 1 }}>
-          <div className="stat-card" style={{ background: '#fff', border: '1.5px solid #e4deff', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 6px rgba(124,58,237,0.06)' }}>
+          <div className="stat-card" style={{ background: '#fff', border: '1.5px solid #c8dcd6', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 6px rgba(74,138,131,0.06)' }}>
             <div style={{ fontSize: 12, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
               <TrophyOutlined /> 等级
             </div>
-            <div className="stat-card-value" style={{ fontSize: 30, fontWeight: 700, color: '#7c3aed', lineHeight: 1 }}>
+            <div className="stat-card-value" style={{ fontSize: 30, fontWeight: 700, color: '#4a8a83', lineHeight: 1 }}>
               Lv.{levelInfo.level}
             </div>
             <div className="stat-card-progress">
-              <Progress percent={Math.floor((levelInfo.currentExp / levelInfo.nextLevelExp) * 100)} size="small" showInfo={false} strokeColor="#7c3aed" railColor="#ede9fe" style={{ marginTop: 8 }} />
+              <Progress percent={Math.floor((levelInfo.currentExp / levelInfo.nextLevelExp) * 100)} size="small" showInfo={false} strokeColor="#4a8a83" railColor="#e6f1ee" style={{ marginTop: 8 }} />
               <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>{formatExp(levelInfo.currentExp)} / {formatExp(levelInfo.nextLevelExp)} EXP</div>
             </div>
           </div>
 
-          <div className="stat-card" style={{ background: '#fff', border: '1.5px solid #e4deff', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 6px rgba(124,58,237,0.06)' }}>
+          <div className="stat-card" style={{ background: '#fff', border: '1.5px solid #c8dcd6', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 6px rgba(74,138,131,0.06)' }}>
             <div style={{ fontSize: 12, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
               <FireOutlined /> 连续打卡
             </div>
@@ -154,10 +154,10 @@ export default function Dashboard() {
               {stats.current_streak}
             </div>
             <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>天 · 最长 {stats.longest_streak} 天</div>
-            <div style={{ fontSize: 11, color: '#a78bfa', marginTop: 2 }}>可用积分 {formatExp(stats.spendable_exp)}</div>
+            <div style={{ fontSize: 11, color: '#6ba39d', marginTop: 2 }}>可用积分 {formatExp(stats.spendable_exp)}</div>
           </div>
 
-          <div className="stat-card" style={{ background: '#fff', border: '1.5px solid #e4deff', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 6px rgba(124,58,237,0.06)' }}>
+          <div className="stat-card" style={{ background: '#fff', border: '1.5px solid #c8dcd6', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 6px rgba(74,138,131,0.06)' }}>
             <div style={{ fontSize: 12, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
               <CheckCircleOutlined /> 今日完成
             </div>
@@ -259,11 +259,11 @@ function EnergyBar({
     <div
       style={{
         background: '#fff',
-        border: '1.5px solid #e4deff',
+        border: '1.5px solid #c8dcd6',
         borderRadius: 14,
         padding: '12px 16px',
         marginBottom: 16,
-        boxShadow: '0 1px 6px rgba(124,58,237,0.06)',
+        boxShadow: '0 1px 6px rgba(74,138,131,0.06)',
         display: 'flex',
         alignItems: 'center',
         gap: 12,
@@ -272,7 +272,7 @@ function EnergyBar({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-        <ThunderboltOutlined style={{ color: '#a78bfa', fontSize: 14 }} />
+        <ThunderboltOutlined style={{ color: '#6ba39d', fontSize: 14 }} />
         <span style={{ fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' }}>此刻感觉怎么样？</span>
       </div>
 
@@ -287,9 +287,9 @@ function EnergyBar({
                 style={{
                   flex: 1,
                   height: 40,
-                  border: isSelected ? '2px solid #7c3aed' : '1.5px solid #e4deff',
+                  border: isSelected ? '2px solid #4a8a83' : '1.5px solid #c8dcd6',
                   borderRadius: 10,
-                  background: isSelected ? '#ede9fe' : '#faf8ff',
+                  background: isSelected ? '#e6f1ee' : '#faf8ff',
                   cursor: saving ? 'not-allowed' : 'pointer',
                   fontSize: 18,
                   display: 'flex',
@@ -317,7 +317,7 @@ function EnergyBar({
       )}
 
       {value === null && (
-        <span style={{ fontSize: 12, color: '#c4b5fd', flexShrink: 0 }}>点击记录</span>
+        <span style={{ fontSize: 12, color: '#b8d8d3', flexShrink: 0 }}>点击记录</span>
       )}
     </div>
   )

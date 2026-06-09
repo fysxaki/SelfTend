@@ -4,7 +4,7 @@ export const CATEGORY_CONFIG: Record<TaskCategory, { label: string; color: strin
   health: { label: '健康', color: '#16a34a', bg: '#dcfce7', icon: '🏃' },
   work:   { label: '工作', color: '#2563eb', bg: '#dbeafe', icon: '💼' },
   life:   { label: '生活', color: '#d97706', bg: '#fef3c7', icon: '🏠' },
-  mood:   { label: '情绪', color: '#7c3aed', bg: '#ede9fe', icon: '😊' },
+  mood:   { label: '情绪', color: '#4a8a83', bg: '#e6f1ee', icon: '😊' },
 }
 
 export const DIFFICULTY_CONFIG: Record<TaskDifficulty, { label: string; color: string; bg: string }> = {

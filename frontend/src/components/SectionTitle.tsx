@@ -10,7 +10,7 @@ interface Props {
   color?: string       // 主标题颜色，默认紫蓝
 }
 
-export default function SectionTitle({ cn, en, count, hint, color = '#5b21b6' }: Props) {
+export default function SectionTitle({ cn, en, count, hint, color = '#2f5d59' }: Props) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>

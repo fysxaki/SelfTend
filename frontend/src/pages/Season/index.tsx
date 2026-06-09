@@ -160,8 +160,8 @@ export default function SeasonPage() {
       <FloatingDecorations />
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20, position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-          <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#5b21b6' }}>赛季</span>
-          <span className="font-script" style={{ fontSize: 26, color: '#a78bfa' }}>Season</span>
+          <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#2f5d59' }}>赛季</span>
+          <span className="font-script" style={{ fontSize: 26, color: '#6ba39d' }}>Season</span>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建赛季</Button>
       </div>
@@ -185,11 +185,11 @@ export default function SeasonPage() {
               style={{
                 padding: '18px 20px',
                 borderRadius: 14,
-                border: `1.5px solid ${isActive ? '#7c3aed' : '#e4deff'}`,
+                border: `1.5px solid ${isActive ? '#4a8a83' : '#c8dcd6'}`,
                 background: isActive ? '#faf8ff' : '#fff',
                 cursor: 'pointer',
                 transition: 'all 0.15s',
-                boxShadow: isActive ? '0 0 0 3px rgba(124,58,237,0.1)' : 'none',
+                boxShadow: isActive ? '0 0 0 3px rgba(74,138,131,0.1)' : 'none',
                 position: 'relative',
               }}
             >
@@ -200,13 +200,13 @@ export default function SeasonPage() {
                     onClick={(e) => openInheritManual(season, e)}
                     title="从其他赛季继承未完成目标"
                     style={{
-                      border: '1px solid #e4deff', background: 'transparent',
+                      border: '1px solid #c8dcd6', background: 'transparent',
                       borderRadius: 8, width: 28, height: 28, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       color: '#9ca3af', fontSize: 13, transition: 'all 0.15s',
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.borderColor = '#7c3aed' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.borderColor = '#e4deff' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = '#4a8a83'; e.currentTarget.style.borderColor = '#4a8a83' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.borderColor = '#c8dcd6' }}
                   >
                     <ImportOutlined />
                   </button>
@@ -215,13 +215,13 @@ export default function SeasonPage() {
                   onClick={(e) => openEdit(season, e)}
                   title="编辑赛季"
                   style={{
-                    border: '1px solid #e4deff', background: 'transparent',
+                    border: '1px solid #c8dcd6', background: 'transparent',
                     borderRadius: 8, width: 28, height: 28, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     color: '#9ca3af', fontSize: 13, transition: 'all 0.15s',
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.borderColor = '#7c3aed' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.borderColor = '#e4deff' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#4a8a83'; e.currentTarget.style.borderColor = '#4a8a83' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.borderColor = '#c8dcd6' }}
                 >
                   <EditOutlined />
                 </button>
@@ -231,7 +231,7 @@ export default function SeasonPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontWeight: 600, fontSize: 15, color: '#1e1826' }}>{season.name}</span>
                   {isActive && (
-                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: '#ede9fe', color: '#7c3aed', fontWeight: 500 }}>
+                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: '#e6f1ee', color: '#4a8a83', fontWeight: 500 }}>
                       进行中
                     </span>
                   )}
@@ -249,7 +249,7 @@ export default function SeasonPage() {
                       {dayjs(season.start_date).format('YYYY/MM/DD')} — {dayjs(season.end_date).format('MM/DD')}
                     </span>
                     {!isExpired && (
-                      <span style={{ marginLeft: 8, color: '#7c3aed', fontWeight: 500 }}>剩余 {daysLeft} 天</span>
+                      <span style={{ marginLeft: 8, color: '#4a8a83', fontWeight: 500 }}>剩余 {daysLeft} 天</span>
                     )}
                   </div>
                 </div>
@@ -314,9 +314,9 @@ export default function SeasonPage() {
         </div>
         {(() => {
           const groups = [
-            { type: 'daily', label: '每日任务', color: '#059669', bg: '#ecfdf5' },
+            { type: 'daily', label: '每日任务', color: '#059669', bg: '#f4f9f7' },
             { type: 'weekly', label: '每周任务', color: '#0284c7', bg: '#eff6ff' },
-            { type: 'season', label: '赛季目标（未完成）', color: '#7c3aed', bg: '#faf8ff' },
+            { type: 'season', label: '赛季目标（未完成）', color: '#4a8a83', bg: '#faf8ff' },
             { type: 'once',   label: '一次性任务（未完成）', color: '#0891b2', bg: '#ecfeff' },
           ]
           return groups.map(({ type, label, color, bg }) => {
@@ -356,7 +356,7 @@ export default function SeasonPage() {
                         gap: 10,
                         padding: '10px 14px',
                         borderRadius: 10,
-                        border: `1.5px solid ${selectedIds.includes(task.id) ? color : '#e4deff'}`,
+                        border: `1.5px solid ${selectedIds.includes(task.id) ? color : '#c8dcd6'}`,
                         background: selectedIds.includes(task.id) ? bg : '#fff',
                         cursor: 'pointer',
                         transition: 'all 0.15s',

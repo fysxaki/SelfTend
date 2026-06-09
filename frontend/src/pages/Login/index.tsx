@@ -30,7 +30,7 @@ export default function Login() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#f0eeff',
+        background: '#f4f9f7',
       }}
     >
       <div
@@ -39,13 +39,13 @@ export default function Login() {
           background: '#fff',
           borderRadius: 20,
           padding: '40px 32px',
-          boxShadow: '0 4px 24px rgba(124,58,237,0.10)',
-          border: '1.5px solid #e4deff',
+          boxShadow: '0 4px 24px rgba(74,138,131,0.10)',
+          border: '1.5px solid #c8dcd6',
           textAlign: 'center',
         }}
       >
         {/* Logo */}
-        <div style={{ fontSize: 36, marginBottom: 8, color: '#7c3aed' }}>◈</div>
+        <div style={{ fontSize: 36, marginBottom: 8, color: '#4a8a83' }}>◈</div>
         <div style={{ fontSize: 20, fontWeight: 700, color: '#1e1826', marginBottom: 4 }}>
           SelfTend
         </div>
@@ -55,7 +55,7 @@ export default function Login() {
 
         {/* 输入框 */}
         <Input
-          prefix={<LockOutlined style={{ color: '#c4b5fd' }} />}
+          prefix={<LockOutlined style={{ color: '#b8d8d3' }} />}
           placeholder="访问码"
           value={code}
           onChange={(e) => setCode(e.target.value)}
