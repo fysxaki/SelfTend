@@ -7,11 +7,14 @@ import {
 import {
   Button,
   Card,
+  Col,
   DatePicker,
   Form,
   Modal,
   Popconfirm,
+  Row,
   Space,
+  Statistic,
   Table,
   TimePicker,
   Tooltip,
@@ -19,7 +22,7 @@ import {
   message,
 } from 'antd'
 import dayjs from 'dayjs'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   createSleepLog,
   deleteSleepLog,
@@ -31,6 +34,10 @@ import { useAppStore } from '@/stores/useAppStore'
 import type { SleepLog } from '@/types'
 
 const { Text } = Typography
+
+// 睡眠统计的滑动窗口：14 天 = 2 个完整周，是睡眠科学里反映「习惯性作息」
+// 和生物钟节律的标准窗口；短于此易受单次熬夜干扰，长于此对作息改善反应迟钝。
+const STATS_WINDOW_DAYS = 14
 
 export default function SleepPage() {
   const { fetchStats } = useAppStore()
@@ -61,9 +68,11 @@ export default function SleepPage() {
   const openCreate = () => {
     setEditingLog(null)
     form.resetFields()
+    // 起床时间默认用近 14 天的平均，没有历史数据时回退到 08:52
+    const defaultWake = recentStats.avgWakeTime ?? '08:52'
     form.setFieldsValue({
       date: dayjs(),
-      wake_time: dayjs('08:50', 'HH:mm'),
+      wake_time: dayjs(defaultWake, 'HH:mm'),
     })
     setModalOpen(true)
   }
@@ -133,6 +142,32 @@ export default function SleepPage() {
   const todayStr = dayjs().format('YYYY-MM-DD')
   const todayLog = logs.find((l) => l.date === todayStr)
 
+  // 近 14 天（生物钟习惯窗口）统计：
+  // - 平均入睡时间 / 平均时长 / 推荐入睡时间（平均提前 20 分钟，下限 22:40）
+  // - 平均起床时间：用于新建睡眠记录时的默认值
+  const recentStats = useMemo(() => {
+    const cutoff = dayjs().subtract(STATS_WINDOW_DAYS - 1, 'day').format('YYYY-MM-DD')
+    const recent = logs.filter((l) => l.date >= cutoff && l.sleep_time)
+    if (recent.length === 0) {
+      return {
+        avgSleepTime: null, avgDurationH: 0, recommended: null, recommendedFloored: false,
+        avgWakeTime: null, count: 0,
+      }
+    }
+    const avgSleepTime = avgClockTime(recent.map((l) => l.sleep_time))
+    const avgDurationH = recent.reduce((a, l) => a + l.duration, 0) / recent.length
+    const raw = avgSleepTime ? shiftClockMinutes(avgSleepTime, -20) : null
+    const recommended = raw ? clampEarliestSleep(raw, '22:40') : null
+    const recommendedFloored = raw !== null && recommended !== raw
+    // 起床时间都在 06:00-12:00 之间，不会跨午夜，直接均值
+    const wakeTimes = recent.filter((l) => l.wake_time).map((l) => l.wake_time as string)
+    const avgWakeTime = wakeTimes.length > 0 ? avgClockTimeSimple(wakeTimes) : null
+    return {
+      avgSleepTime, avgDurationH, recommended, recommendedFloored,
+      avgWakeTime, count: recent.length,
+    }
+  }, [logs])
+
   const columns = [
     {
       title: '日期',
@@ -148,7 +183,7 @@ export default function SleepPage() {
       key: 'sleep_time',
       render: (t: string, record: SleepLog) => (
         <Space>
-          <MoonOutlined style={{ color: '#a78bfa' }} />
+          <MoonOutlined style={{ color: '#6ba39d' }} />
           <Text>{t}</Text>
           {record.penalized && (
             <Tooltip title={`超过 01:30 入睡，扣除 ${record.penalty_exp.toFixed(1)} 积分`}>
@@ -225,10 +260,10 @@ export default function SleepPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24, position: 'relative', zIndex: 1 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-            <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#5b21b6' }}>
-              <MoonOutlined style={{ marginRight: 6, color: '#a78bfa' }} />睡眠记录
+            <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#2f5d59' }}>
+              <MoonOutlined style={{ marginRight: 6, color: '#6ba39d' }} />睡眠记录
             </span>
-            <span className="font-script" style={{ fontSize: 26, color: '#a78bfa' }}>Sleep</span>
+            <span className="font-script" style={{ fontSize: 26, color: '#6ba39d' }}>Sleep</span>
           </div>
           <Text type="secondary" style={{ fontSize: 13 }}>
             超过 01:30 入睡扣20% · &lt;6h 扣20% · 6→8h 线性 0~+52（≥8h 封顶）
@@ -282,6 +317,55 @@ export default function SleepPage() {
             )}
           </Space>
         </Card>
+      )}
+
+      {/* 近 7 天统计 */}
+      {recentStats.count > 0 && (
+        <Row gutter={12} style={{ marginBottom: 16 }}>
+          <Col xs={24} sm={8}>
+            <Card size="small" style={{ background: '#fff', border: '1px solid #cffafe' }}>
+              <Statistic
+                title={<span style={{ fontSize: 12, color: '#6b7280' }}>
+                  近 {recentStats.count} 天平均入睡
+                </span>}
+                value={recentStats.avgSleepTime ?? '—'}
+                valueStyle={{ color: '#0891b2', fontSize: 22, fontWeight: 700 }}
+                prefix={<MoonOutlined style={{ color: '#06b6d4' }} />}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={8}>
+            <Card size="small" style={{ background: '#fff', border: '1px solid #d1fae5' }}>
+              <Statistic
+                title={<span style={{ fontSize: 12, color: '#6b7280' }}>
+                  近 {recentStats.count} 天平均时长
+                </span>}
+                value={formatDuration(recentStats.avgDurationH)}
+                valueStyle={{
+                  color: recentStats.avgDurationH >= 7 ? '#16a34a' : recentStats.avgDurationH >= 6 ? '#d97706' : '#dc2626',
+                  fontSize: 22, fontWeight: 700,
+                }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={8}>
+            <Card
+              size="small"
+              style={{
+                background: 'linear-gradient(135deg, #e6f1ee 0%, #ecfeff 100%)',
+                border: '1px solid #b8d8d3',
+              }}
+            >
+              <Statistic
+                title={<span style={{ fontSize: 12, color: '#3d6d68' }}>
+                  💡 今晚建议入睡{recentStats.recommendedFloored ? '（已是最早）' : '（提前 20 分钟）'}
+                </span>}
+                value={recentStats.recommended ?? '—'}
+                valueStyle={{ color: '#3d6d68', fontSize: 22, fontWeight: 700 }}
+              />
+            </Card>
+          </Col>
+        </Row>
       )}
 
       {/* 记录列表 */}
@@ -338,7 +422,9 @@ export default function SleepPage() {
             name="wake_time"
             label="起床时间"
             rules={[{ required: true, message: '请选择起床时间' }]}
-            extra="默认 08:52，可按实际调整"
+            extra={recentStats.avgWakeTime
+              ? `默认为近 ${recentStats.count} 天平均起床时间 ${recentStats.avgWakeTime}，可按实际调整`
+              : '默认 08:50，可按实际调整'}
           >
             <TimePicker
               style={{ width: '100%' }}
@@ -351,4 +437,70 @@ export default function SleepPage() {
       </Modal>
     </div>
   )
+}
+
+// ─── 工具函数 ────────────────────────────────────────────────
+
+// 把若干个 "HH:mm" 时间求平均，正确处理跨午夜的情况。
+// 思路：所有 < 12:00 的时间视为「次日凌晨」，加 24h 再平均，最后对 24h 取模。
+function avgClockTime(times: string[]): string | null {
+  if (!times.length) return null
+  const minutes = times.map((t) => {
+    const [h, m] = t.split(':').map(Number)
+    let total = h * 60 + m
+    if (total < 12 * 60) total += 24 * 60 // 凌晨时段归到「次日」
+    return total
+  })
+  const avg = minutes.reduce((a, b) => a + b, 0) / minutes.length
+  const normalized = ((Math.round(avg) % (24 * 60)) + 24 * 60) % (24 * 60)
+  return formatClock(normalized)
+}
+
+// 简单平均，不处理跨午夜（用于起床时间这种全部落在白天的场景）
+function avgClockTimeSimple(times: string[]): string | null {
+  if (!times.length) return null
+  const minutes = times.map((t) => {
+    const [h, m] = t.split(':').map(Number)
+    return h * 60 + m
+  })
+  const avg = Math.round(minutes.reduce((a, b) => a + b, 0) / minutes.length)
+  return formatClock(avg)
+}
+
+// 把 "HH:mm" 加/减 N 分钟，按 24h 循环
+function shiftClockMinutes(time: string, deltaMin: number): string {
+  const [h, m] = time.split(':').map(Number)
+  const total = ((h * 60 + m + deltaMin) % (24 * 60) + 24 * 60) % (24 * 60)
+  return formatClock(total)
+}
+
+// 限制「推荐入睡时间」不能比 floor 更早。
+// 入睡场景的时间只可能落在傍晚~凌晨之间：
+//   - [12:00, 22:40) 视为「早于下限」，提升到 floor
+//   - [22:40, 24:00) 和 [00:00, 12:00) 都视为「正常或更晚」，保持原值
+// 这样避免对凌晨 03:00 这种值错误地反向钳制。
+function clampEarliestSleep(time: string, floor: string): string {
+  const toMin = (t: string) => {
+    const [h, m] = t.split(':').map(Number)
+    return h * 60 + m
+  }
+  const total = toMin(time)
+  const floorTotal = toMin(floor)
+  if (total >= 12 * 60 && total < floorTotal) {
+    return floor
+  }
+  return time
+}
+
+function formatClock(totalMin: number): string {
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+// 把小时浮点数（如 7.38）格式化成 "7h 23m"
+function formatDuration(h: number): string {
+  const hh = Math.floor(h)
+  const mm = Math.round((h - hh) * 60)
+  return `${hh}h ${mm}m`
 }
