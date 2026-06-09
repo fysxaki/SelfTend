@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -62,29 +63,48 @@ func RedeemPrize(db *gorm.DB) gin.HandlerFunc {
 		id, _ := strconv.Atoi(c.Param("id"))
 
 		var prize model.Prize
-		if err := db.First(&prize, id).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "prize not found"})
-			return
-		}
-		if prize.Redeemed {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "already redeemed"})
-			return
-		}
-
 		var stats model.UserStats
-		db.First(&stats)
-		if stats.SpendableExp < prize.Cost {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "insufficient points"})
+
+		// 用事务：扣分和标记 redeemed 必须同生同灭，任一失败全部回滚
+		err := db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.First(&prize, id).Error; err != nil {
+				return fmt.Errorf("prize not found")
+			}
+			if prize.Redeemed {
+				return fmt.Errorf("already redeemed")
+			}
+
+			if err := tx.First(&stats).Error; err != nil {
+				return err
+			}
+			if stats.SpendableExp < prize.Cost {
+				return fmt.Errorf("insufficient points")
+			}
+
+			stats.SpendableExp -= prize.Cost
+			if err := tx.Save(&stats).Error; err != nil {
+				return err
+			}
+
+			now := time.Now()
+			prize.Redeemed = true
+			prize.RedeemedAt = &now
+			return tx.Save(&prize).Error
+		})
+
+		if err != nil {
+			// 业务错误统一返回 400，DB 错误返回 500
+			msg := err.Error()
+			switch msg {
+			case "prize not found":
+				c.JSON(http.StatusNotFound, gin.H{"error": msg})
+			case "already redeemed", "insufficient points":
+				c.JSON(http.StatusBadRequest, gin.H{"error": msg})
+			default:
+				c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+			}
 			return
 		}
-
-		stats.SpendableExp -= prize.Cost
-		db.Save(&stats)
-
-		now := time.Now()
-		prize.Redeemed = true
-		prize.RedeemedAt = &now
-		db.Save(&prize)
 
 		c.JSON(http.StatusOK, gin.H{"prize": prize, "stats": stats})
 	}

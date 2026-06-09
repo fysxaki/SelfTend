@@ -63,7 +63,7 @@ export default function SleepPage() {
     form.resetFields()
     form.setFieldsValue({
       date: dayjs(),
-      wake_time: dayjs('08:49', 'HH:mm'),
+      wake_time: dayjs('08:50', 'HH:mm'),
     })
     setModalOpen(true)
   }
@@ -231,7 +231,7 @@ export default function SleepPage() {
             <span className="font-script" style={{ fontSize: 26, color: '#a78bfa' }}>Sleep</span>
           </div>
           <Text type="secondary" style={{ fontSize: 13 }}>
-            超过 01:30 入睡扣20% · &lt;6h 扣20% · 7-8h +12分 · ≥8h +52分
+            超过 01:30 入睡扣20% · &lt;6h 扣20% · 6→8h 线性 0~+52（≥8h 封顶）
           </Text>
         </div>
         <Button

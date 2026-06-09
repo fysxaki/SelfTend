@@ -65,7 +65,10 @@ type SleepLog struct {
 	Penalized  bool      `json:"penalized"`   // 是否触发晚睡惩罚
 	PenaltyExp float64   `json:"penalty_exp"` // 晚睡扣除的积分
 	BonusExp   float64   `json:"bonus_exp"`   // 时长奖励/惩罚：正数=奖励，负数=不足6小时惩罚
-	CreatedAt  time.Time `json:"created_at"`
+	// Source 记录来源：空 / "manual"=手动录入；"healthkit"=iOS 健康自动导入；
+	// 手动记录优先级更高，自动导入不会覆盖
+	Source    string    `json:"source" gorm:"default:'manual'"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // EnergyLog 每日能量记录

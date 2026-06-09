@@ -31,6 +31,27 @@ func AccessCode() gin.HandlerFunc {
 	}
 }
 
+// ImportSecret 给 iOS Shortcut / Health Auto Export 用的长期 token。
+// 单独的 X-Import-Secret 头，与主 access code 分离，方便单独轮转。
+// 未配置 SLEEP_IMPORT_SECRET 时本接口不可用（返回 503）。
+func ImportSecret() gin.HandlerFunc {
+	secret := os.Getenv("SLEEP_IMPORT_SECRET")
+	return func(c *gin.Context) {
+		if secret == "" {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "import endpoint disabled: SLEEP_IMPORT_SECRET not configured"})
+			c.Abort()
+			return
+		}
+		clientSecret := c.GetHeader("X-Import-Secret")
+		if clientSecret != secret {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid import secret"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
 // CheckCode 用于前端验证访问码是否正确
 func CheckCode() gin.HandlerFunc {
 	return func(c *gin.Context) {

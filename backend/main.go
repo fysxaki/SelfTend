@@ -52,6 +52,9 @@ func main() {
 	// 公开：验证访问码
 	r.POST("/api/auth/login", middleware.CheckCode())
 
+	// iOS HealthKit 自动导入睡眠数据：独立 X-Import-Secret 鉴权，不走主 access code
+	r.POST("/api/sleep-logs/import", middleware.ImportSecret(), handler.ImportSleepLog(db))
+
 	// 受保护路由
 	api := r.Group("/api", middleware.AccessCode())
 	{

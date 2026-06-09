@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -162,6 +163,98 @@ func UpdateSleepLog(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// ImportSleepLogReq iOS 健康（HealthKit）自动同步过来的睡眠记录
+type ImportSleepLogReq struct {
+	Date      string `json:"date"`       // YYYY-MM-DD（起床那天）
+	SleepTime string `json:"sleep_time"` // HH:MM 入睡时间
+	WakeTime  string `json:"wake_time"`  // HH:MM 起床时间，可选
+}
+
+// ImportSleepLog 来自 iOS HealthKit 的自动同步。
+// 行为：
+//   - 当天没有记录 → 创建（source=healthkit），并计算奖惩
+//   - 当天已有 manual 记录 → 跳过（手动优先）
+//   - 当天已有 healthkit 记录 → 更新时间，重算时长/奖惩，并补退之前的奖惩
+//
+// 鉴权：单独的 X-Import-Secret 头（env 配置 SLEEP_IMPORT_SECRET），与主 access code 分离，
+// 方便给 iOS Shortcut 用长期 token。
+func ImportSleepLog(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req ImportSleepLogReq
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if req.Date == "" || req.SleepTime == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "date 和 sleep_time 必填"})
+			return
+		}
+
+		wakeTime := req.WakeTime
+		if wakeTime == "" {
+			wakeTime = defaultWakeTime
+		}
+
+		duration, err := calcSleepDuration(req.Date, req.SleepTime, wakeTime)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("时间格式错误: %v", err)})
+			return
+		}
+
+		var existing model.SleepLog
+		findErr := db.Where("date = ?", req.Date).First(&existing).Error
+
+		// 已存在手动记录 → 不动，告诉调用方跳过
+		if findErr == nil && existing.Source != "" && existing.Source != "healthkit" {
+			c.JSON(http.StatusOK, gin.H{
+				"skipped": true,
+				"reason":  "manual record exists, healthkit will not overwrite",
+				"log":     existing,
+			})
+			return
+		}
+
+		// 已有 healthkit 记录 → 退还旧奖惩，重新计算，更新时间
+		if findErr == nil {
+			if existing.Penalized && existing.PenaltyExp > 0 {
+				refundStats(db, existing.PenaltyExp)
+			}
+			if existing.BonusExp != 0 {
+				refundStats(db, existing.BonusExp)
+			}
+			existing.SleepTime = req.SleepTime
+			existing.WakeTime = wakeTime
+			existing.Duration = duration
+			existing.Penalized = isSleepPenalized(req.SleepTime)
+			existing.PenaltyExp = 0
+			if existing.Penalized {
+				existing.PenaltyExp = applyRetroactivePenalty(db, req.Date)
+			}
+			existing.BonusExp = applyDurationBonus(db, duration, req.Date)
+			existing.Source = "healthkit"
+			db.Save(&existing)
+			c.JSON(http.StatusOK, gin.H{"updated": true, "log": existing})
+			return
+		}
+
+		// 全新创建
+		log := model.SleepLog{
+			Date:      req.Date,
+			SleepTime: req.SleepTime,
+			WakeTime:  wakeTime,
+			Duration:  duration,
+			Source:    "healthkit",
+		}
+		log.Penalized = isSleepPenalized(req.SleepTime)
+		if log.Penalized {
+			log.PenaltyExp = applyRetroactivePenalty(db, req.Date)
+		}
+		log.BonusExp = applyDurationBonus(db, duration, req.Date)
+		db.Create(&log)
+		c.JSON(http.StatusOK, gin.H{"created": true, "log": log})
+	}
+}
+
 // DeleteSleepLog 删除睡眠记录（退还惩罚积分）
 func DeleteSleepLog(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -307,14 +400,18 @@ func BackfillPenaltyExp(db *gorm.DB) gin.HandlerFunc {
 }
 
 // applyDurationBonus 根据睡眠时长发放奖励或惩罚，返回净变化量（正=加分，负=扣分）
-// <6h: 扣该日任务积分20%；6-7h: 无；7-8h: +12分；>=8h: +52分
+//
+// 规则（全程线性平滑，避免阶梯跳跃）：
+//   - <6h:    扣该日任务积分 20%
+//   - 6-7h:   线性 0 → 12（每多 0.1h 加 1.2 分）
+//   - 7-8h:   线性 12 → 52（每多 0.1h 加 4 分）
+//   - >=8h:   封顶 52 分
 func applyDurationBonus(db *gorm.DB, duration float64, date string) float64 {
 	var stats model.UserStats
 	db.First(&stats)
 
-	switch {
-	case duration < 6:
-		// 补扣该日任务积分20%
+	// <6h 惩罚分支
+	if duration < 6 {
 		dayStart, err := time.ParseInLocation("2006-01-02", date, cst)
 		if err != nil {
 			return 0
@@ -341,24 +438,28 @@ func applyDurationBonus(db *gorm.DB, duration float64, date string) float64 {
 		stats.Level = calcLevel(stats.TotalExp)
 		db.Save(&stats)
 		return -penalty
-
-	case duration >= 7 && duration < 8:
-		stats.SpendableExp += 12
-		stats.TotalExp += 12
-		stats.Level = calcLevel(stats.TotalExp)
-		db.Save(&stats)
-		return 12
-
-	case duration >= 8:
-		stats.SpendableExp += 52
-		stats.TotalExp += 52
-		stats.Level = calcLevel(stats.TotalExp)
-		db.Save(&stats)
-		return 52
-
-	default:
-		return 0 // 6h~7h：不奖不惩
 	}
+
+	// 6h 以上的奖励：分两段线性插值，8h 封顶
+	//   6-7h: 0 → 12  (斜率 12/h)
+	//   7-8h: 12 → 52 (斜率 40/h)
+	var bonus float64
+	switch {
+	case duration < 7:
+		bonus = (duration - 6) * 12
+	case duration <= 8:
+		bonus = 12 + (duration-7)*40
+	default:
+		bonus = 52
+	}
+	// 保留 1 位小数
+	bonus = math.Round(bonus*10) / 10
+
+	stats.SpendableExp += bonus
+	stats.TotalExp += bonus
+	stats.Level = calcLevel(stats.TotalExp)
+	db.Save(&stats)
+	return bonus
 }
 
 // refundStats 退还积分到 UserStats
