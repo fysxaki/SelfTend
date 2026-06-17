@@ -34,6 +34,7 @@ func main() {
 		&model.EnergyLog{},
 		&model.ReviewLog{},
 		&model.UserConfig{},
+		&model.WorryNote{},
 	)
 
 	// 仅初始化 UserStats（业务必须存在的系统记录）
@@ -102,6 +103,13 @@ func main() {
 		api.POST("/review/chat", handler.Chat(db))
 		api.POST("/review/save", handler.SaveReview(db))
 		api.GET("/review/logs", handler.GetReviews(db))
+
+		// 焦虑暂存箱
+		api.POST("/worries", handler.CreateWorryNote(db))
+		api.GET("/worries", handler.GetWorryNotes(db))
+		api.PUT("/worries/:id", handler.UpdateWorryNote(db))
+		api.POST("/worries/:id/resolve", handler.ResolveWorryNote(db))
+		api.DELETE("/worries/:id", handler.DeleteWorryNote(db))
 	}
 
 	log.Println("Server running on :8080")

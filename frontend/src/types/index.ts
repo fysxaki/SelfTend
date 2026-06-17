@@ -104,3 +104,12 @@ export interface ReviewLog {
   summary: string
   created_at: string
 }
+
+export interface WorryNote {
+  id: number
+  content: string
+  handle_date: string      // YYYY-MM-DD 计划处理日期
+  resolved: boolean
+  resolved_at: string | null
+  created_at: string
+}

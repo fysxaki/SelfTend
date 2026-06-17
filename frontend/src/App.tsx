@@ -2,6 +2,7 @@ import {
   AppstoreOutlined,
   BarChartOutlined,
   BookOutlined,
+  CloudOutlined,
   GiftOutlined,
   MoonOutlined,
   ScheduleOutlined,
@@ -26,6 +27,7 @@ const SeasonPage   = lazy(() => import('@/pages/Season'))
 const SleepPage    = lazy(() => import('@/pages/Sleep'))
 const AnalyticsPage = lazy(() => import('@/pages/Analytics'))
 const ReviewPage   = lazy(() => import('@/pages/Review'))
+const WorryPage    = lazy(() => import('@/pages/Worry'))
 const Login        = lazy(() => import('@/pages/Login'))
 
 const { Sider, Content } = Layout
@@ -36,6 +38,7 @@ const NAV_ITEMS = [
   { key: '/rewards',   icon: <GiftOutlined />,      label: '奖励商店', path: '/rewards' },
   { key: '/season',    icon: <TrophyOutlined />,    label: '当前赛季', path: '/season' },
   { key: '/sleep',     icon: <MoonOutlined />,      label: '睡眠记录', path: '/sleep' },
+  { key: '/worry',     icon: <CloudOutlined />,     label: '焦虑暂存', path: '/worry' },
   { key: '/analytics', icon: <BarChartOutlined />,  label: '数据分析', path: '/analytics' },
   { key: '/review',    icon: <BookOutlined />,      label: '每日复盘', path: '/review' },
 ]
@@ -116,6 +119,7 @@ function AppLayout() {
               <Route path="/rewards"    element={<Rewards />} />
               <Route path="/season"     element={<SeasonPage />} />
               <Route path="/sleep"      element={<SleepPage />} />
+              <Route path="/worry"      element={<WorryPage />} />
               <Route path="/analytics"  element={<AnalyticsPage />} />
               <Route path="/review"     element={<ReviewPage />} />
             </Routes>

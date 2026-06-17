@@ -94,3 +94,14 @@ type UserConfig struct {
 	Key   string `json:"key" gorm:"uniqueIndex"`
 	Value string `json:"value"`
 }
+
+// WorryNote 焦虑暂存箱：深夜焦虑念头先记下，标一个「处理时间」，
+// 到时间再由清醒的自己处理，拦截「凌晨疯狂搜攻略」的死循环。
+type WorryNote struct {
+	ID         uint       `json:"id" gorm:"primaryKey"`
+	Content    string     `json:"content"`                      // 焦虑的念头
+	HandleDate string     `json:"handle_date"`                  // YYYY-MM-DD，计划处理这件事的日期
+	Resolved   bool       `json:"resolved"`                     // 是否已处理
+	ResolvedAt *time.Time `json:"resolved_at"`                  // 处理时间
+	CreatedAt  time.Time  `json:"created_at"`                   // 记下的时间
+}

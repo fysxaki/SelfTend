@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AnalyticsItem, ChatMessage, EnergyLog, Prize, ReviewLog, Season, SleepLog, Task, TaskLog, UserStats } from '@/types'
+import type { AnalyticsItem, ChatMessage, EnergyLog, Prize, ReviewLog, Season, SleepLog, Task, TaskLog, UserStats, WorryNote } from '@/types'
 
 export const http = axios.create({
   baseURL: '/api',
@@ -109,3 +109,14 @@ export const saveReview = (summary: string) =>
   http.post<ReviewLog, ReviewLog>('/review/save', { summary })
 export const getReviews = (limit = 30) =>
   http.get<ReviewLog[], ReviewLog[]>('/review/logs', { params: { limit } })
+
+// 焦虑暂存箱
+export const createWorry = (data: { content: string; handle_date?: string }) =>
+  http.post<WorryNote, WorryNote>('/worries', data)
+export const getWorries = (status?: 'due' | 'pending' | 'resolved') =>
+  http.get<WorryNote[], WorryNote[]>('/worries', { params: status ? { status } : {} })
+export const updateWorry = (id: number, data: { content?: string; handle_date?: string }) =>
+  http.put<WorryNote, WorryNote>(`/worries/${id}`, data)
+export const resolveWorry = (id: number, resolved: boolean) =>
+  http.post<WorryNote, WorryNote>(`/worries/${id}/resolve`, { resolved })
+export const deleteWorry = (id: number) => http.delete(`/worries/${id}`)
