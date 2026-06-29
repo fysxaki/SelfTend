@@ -4,6 +4,12 @@
 
 **技术栈**：React + TypeScript + Ant Design（前端）/ Go + Gin + SQLite（后端）
 
+> 🚀 **部署 / 更新一行命令**（本地 `git push` 之后）：
+> ```bash
+> ssh root@<服务器IP> 'cd /opt/selftend && bash deploy/2_deploy.sh'
+> ```
+> 自动拉代码 + 构建前后端 + 重载 Nginx + 重启服务。详见 [生产部署](#生产部署linux-服务器)。
+
 ---
 
 ## 本地开发
@@ -64,63 +70,49 @@ npm run dev
 
 ## 生产部署（Linux 服务器）
 
-部署脚本和配置文件均在 `deploy/` 目录。
+部署全靠 `deploy/` 目录下两个脚本，服务器直接 `git pull` 取代码，**不用手动 scp / cp 配置**。
 
-### 1. 构建
+### 日常更新（最常用）
+
+本地改完代码 `git push` 后，一行命令完成更新：
 
 ```bash
-# 构建前端静态文件
-cd frontend && npm install && npm run build
-
-# 编译后端二进制
-cd backend && go build -o selftend .
+ssh root@<服务器IP> 'cd /opt/selftend && bash deploy/2_deploy.sh'
 ```
 
-### 2. 上传文件
+`2_deploy.sh` 会自动：`git pull` → 构建前端 → 编译后端 → 更新 Nginx 配置并 reload → 重启 systemd 服务，最后校验服务是否起来。
+
+### 首次部署（每台新服务器只需一次）
 
 ```bash
-# 将编译产物上传到服务器（路径见 nginx.conf / selftend.service）
-scp -r frontend/dist root@<服务器IP>:/opt/selftend/frontend/
-scp backend/selftend root@<服务器IP>:/opt/selftend/backend/
-```
+# 1. SSH 登录服务器，初始化环境（装 Go / Node / Nginx / certbot 等）
+ssh root@<服务器IP>
+bash 1_setup.sh                       # 脚本在 deploy/，或先 scp 过去
 
-### 3. 服务器配置
+# 2. 配置 DNS：把域名解析到本机 IP
 
-```bash
-# 安装 nginx（如未安装）
-apt install nginx -y
+# 3. 拉代码到 /opt/selftend
+cd /opt/selftend && git clone https://github.com/fysxaki/SelfTend.git .
 
-# 复制 nginx 配置
-cp deploy/nginx.conf /etc/nginx/sites-enabled/selftend.conf
-nginx -t && systemctl reload nginx
+# 4. 写后端环境变量
+echo "DEEPSEEK_API_KEY=sk-xxx" > backend/.env
 
-# 创建后端环境变量文件
-echo "DEEPSEEK_API_KEY=sk-xxx" > /opt/selftend/backend/.env
+# 5. 首次部署（HTTP）
+bash deploy/2_deploy.sh
 
-# 注册并启动后端系统服务
-cp deploy/selftend.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable selftend
-systemctl start selftend
-
-# 查看运行状态
-systemctl status selftend
+# 6. 申请 SSL 证书（certbot 自动改 Nginx + 自动续期）
+certbot --nginx -d <你的域名>
 ```
 
 ### 常用运维命令
 
 ```bash
-# 查看后端日志
+# 查看后端实时日志
 journalctl -u selftend -f
 
-# 重启后端
+# 重启 / 查看后端服务
 systemctl restart selftend
-
-# 重新部署后端（上传新二进制后）
-systemctl restart selftend
-
-# 重新部署前端（上传新 dist 后，nginx 无需重启）
-# 刷新浏览器即可
+systemctl status selftend
 ```
 
 ---
