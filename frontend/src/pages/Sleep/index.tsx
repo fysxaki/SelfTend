@@ -21,6 +21,7 @@ import {
   Typography,
   message,
 } from 'antd'
+import { isWorkday } from 'chinese-days'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -39,6 +40,13 @@ const { Text } = Typography
 // 和生物钟节律的标准窗口；短于此易受单次熬夜干扰，长于此对作息改善反应迟钝。
 const STATS_WINDOW_DAYS = 14
 
+// 「今晚建议入睡」分两套，依据明天（起床那天）是否工作日：
+// - 工作日：固定 07:35 起床，建议入睡 = 07:35 − 预计睡眠时长（用 chinese-days 判断，含调休）
+// - 休息日/节假日：沿用习惯窗口逻辑（近 14 天平均入睡 − 20min，下限 22:40）
+const WORKDAY_WAKE = '07:35'
+// 预计睡眠时长默认 8h（最少 8h，最多 9h）；晚睡多时可在卡片上调 +0.5h / +1h
+const SLEEP_GOAL_MIN = '08:00'
+
 export default function SleepPage() {
   const { fetchStats } = useAppStore()
   const [logs, setLogs] = useState<SleepLog[]>([])
@@ -47,6 +55,8 @@ export default function SleepPage() {
   const [editingLog, setEditingLog] = useState<SleepLog | null>(null)
   const [form] = Form.useForm()
   const [submitting, setSubmitting] = useState(false)
+  // 工作日建议入睡所用的「今晚预计睡眠时长」，默认 8h，可在卡片上调到 9h
+  const [sleepGoal, setSleepGoal] = useState<dayjs.Dayjs>(dayjs(SLEEP_GOAL_MIN, 'HH:mm'))
 
   const loadLogs = async () => {
     setLoading(true)
@@ -167,6 +177,13 @@ export default function SleepPage() {
       avgWakeTime, count: recent.length,
     }
   }, [logs])
+
+  // 明天（起床那天）是否工作日 → 决定建议入睡走哪套逻辑
+  const tomorrowIsWorkday = isWorkday(dayjs().add(1, 'day').format('YYYY-MM-DD'))
+  // 工作日：07:35 − 预计睡眠时长；休息日：沿用习惯窗口推荐值
+  const goalMinutes = sleepGoal.hour() * 60 + sleepGoal.minute()
+  const workdayRecommended = shiftClockMinutes(WORKDAY_WAKE, -goalMinutes)
+  const recommendedSleep = tomorrowIsWorkday ? workdayRecommended : recentStats.recommended
 
   const columns = [
     {
@@ -358,11 +375,35 @@ export default function SleepPage() {
             >
               <Statistic
                 title={<span style={{ fontSize: 12, color: '#3d6d68' }}>
-                  💡 今晚建议入睡{recentStats.recommendedFloored ? '（已是最早）' : '（提前 20 分钟）'}
+                  💡 今晚建议入睡{tomorrowIsWorkday
+                    ? '（工作日 · 起床 7:35）'
+                    : recentStats.recommendedFloored ? '（休息日 · 已是最早）' : '（休息日 · 提前 20 分钟）'}
                 </span>}
-                value={recentStats.recommended ?? '—'}
+                value={recommendedSleep ?? '—'}
                 valueStyle={{ color: '#3d6d68', fontSize: 22, fontWeight: 700 }}
               />
+              {tomorrowIsWorkday && (
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: '#3d6d68' }}>预计睡</span>
+                  <TimePicker
+                    value={sleepGoal}
+                    onChange={(v) => v && setSleepGoal(v)}
+                    format="HH:mm"
+                    minuteStep={30}
+                    allowClear={false}
+                    needConfirm={false}
+                    inputReadOnly
+                    size="small"
+                    style={{ width: 96 }}
+                    disabledTime={() => ({
+                      // 限制只能选 08:00 / 08:30 / 09:00（最少 8h、最多 9h）
+                      disabledHours: () => Array.from({ length: 24 }, (_, i) => i).filter((h) => h !== 8 && h !== 9),
+                      disabledMinutes: (h) => (h === 9 ? Array.from({ length: 60 }, (_, i) => i).filter((m) => m !== 0) : []),
+                    })}
+                    hideDisabledOptions
+                  />
+                </div>
+              )}
             </Card>
           </Col>
         </Row>
