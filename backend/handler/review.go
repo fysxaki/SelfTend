@@ -230,64 +230,131 @@ func GetReviews(db *gorm.DB) gin.HandlerFunc {
 
 // ── 内部工具函数 ───────────────────────────────────────────────────────────
 
-// buildContext 查询最近数据，生成上下文字符串注入 prompt
+// 复盘上下文的历史窗口：14 天，与前端睡眠统计的生物钟窗口一致
+const reviewWindowDays = 14
+
+var energyLabels = map[int]string{1: "很差", 2: "较差", 3: "一般", 4: "不错", 5: "满血"}
+
+// cnWeekday 返回中文星期几
+func cnWeekday(t time.Time) string {
+	names := []string{"周日", "周一", "周二", "周三", "周四", "周五", "周六"}
+	return names[int(t.Weekday())]
+}
+
+// buildContext 查询最近数据，生成结构化上下文注入 prompt。
+// 不只给今天，还给近 14 天的睡眠/能量明细、焦虑暂存箱、历史复盘小结，
+// 让教练能看趋势、找根因、保持会话连续性。所有数据均来自 DB，绝不编造。
 func buildContext(db *gorm.DB) string {
-	today := time.Now().In(cst).Format("2006-01-02")
-	weekAgo := time.Now().In(cst).AddDate(0, 0, -6).Format("2006-01-02")
+	now := time.Now().In(cst)
+	today := now.Format("2006-01-02")
+	windowStart := now.AddDate(0, 0, -(reviewWindowDays - 1)).Format("2006-01-02")
 
-	// 今日睡眠
+	var sb strings.Builder
+
+	// ── 今日快照 ──
+	sb.WriteString(fmt.Sprintf("【今日 %s %s】\n", today, cnWeekday(now)))
+
 	var todaySleep model.SleepLog
-	sleepStr := "暂无记录"
 	if err := db.Where("date = ?", today).First(&todaySleep).Error; err == nil {
-		sleepStr = fmt.Sprintf("入睡 %s，时长 %.1f 小时", todaySleep.SleepTime, todaySleep.Duration)
+		line := fmt.Sprintf("- 睡眠：入睡 %s，时长 %.1f 小时", todaySleep.SleepTime, todaySleep.Duration)
 		if todaySleep.Penalized {
-			sleepStr += fmt.Sprintf("（超时惩罚 -%.1f 积分）", todaySleep.PenaltyExp)
+			line += fmt.Sprintf("（晚睡惩罚 -%.1f 积分）", todaySleep.PenaltyExp)
 		}
+		sb.WriteString(line + "\n")
+	} else {
+		sb.WriteString("- 睡眠：今天还没有记录\n")
 	}
 
-	// 今日能量
 	var todayEnergy model.EnergyLog
-	energyStr := "暂无记录"
 	if err := db.Where("date = ?", today).First(&todayEnergy).Error; err == nil {
-		labels := map[int]string{1: "很差", 2: "较差", 3: "一般", 4: "不错", 5: "满血"}
-		energyStr = fmt.Sprintf("%d/5（%s）", todayEnergy.EnergyLevel, labels[todayEnergy.EnergyLevel])
+		sb.WriteString(fmt.Sprintf("- 能量：%d/5（%s）\n", todayEnergy.EnergyLevel, energyLabels[todayEnergy.EnergyLevel]))
+	} else {
+		sb.WriteString("- 能量：今天还没有记录\n")
 	}
 
-	// 今日任务完成情况
 	todayStart, todayEnd := todayRangeUTC()
-	type taskResult struct {
+	var tr struct {
 		Count int
 		Total float64
 	}
-	var tr taskResult
 	db.Model(&model.TaskLog{}).
 		Select("COUNT(*) as count, COALESCE(SUM(exp_awarded), 0) as total").
 		Where("completed_at >= ? AND completed_at < ?", todayStart, todayEnd).
 		Scan(&tr)
-	taskStr := fmt.Sprintf("完成 %d 条任务，获得 %.1f 积分", tr.Count, tr.Total)
+	sb.WriteString(fmt.Sprintf("- 任务：完成 %d 条，获得 %.1f 积分\n", tr.Count, tr.Total))
 
-	// 近7天睡眠均值
+	// ── 近 N 天睡眠明细 ──
 	var sleepLogs []model.SleepLog
-	db.Where("date >= ? AND date <= ?", weekAgo, today).Find(&sleepLogs)
-	avgSleep := 0.0
-	if len(sleepLogs) > 0 {
+	db.Where("date >= ? AND date <= ?", windowStart, today).Order("date desc").Find(&sleepLogs)
+	sb.WriteString(fmt.Sprintf("\n【近 %d 天睡眠明细】\n", reviewWindowDays))
+	if len(sleepLogs) == 0 {
+		sb.WriteString("- 这段时间没有睡眠记录\n")
+	} else {
+		var sum float64
 		for _, s := range sleepLogs {
-			avgSleep += s.Duration
+			sum += s.Duration
+			wd := ""
+			if t, err := time.ParseInLocation("2006-01-02", s.Date, cst); err == nil {
+				wd = cnWeekday(t)
+			}
+			line := fmt.Sprintf("- %s %s 入睡 %s，%.1fh", mmdd(s.Date), wd, s.SleepTime, s.Duration)
+			if s.Penalized {
+				line += " ⚠️晚睡"
+			}
+			sb.WriteString(line + "\n")
 		}
-		avgSleep /= float64(len(sleepLogs))
+		sb.WriteString(fmt.Sprintf("平均 %.1fh（共记录 %d 天）\n", sum/float64(len(sleepLogs)), len(sleepLogs)))
 	}
-	weekSleepStr := fmt.Sprintf("近7天平均睡眠 %.1f 小时（共记录 %d 天）", avgSleep, len(sleepLogs))
 
-	// 用户积分和等级
+	// ── 近 N 天能量 ──
+	var energyLogs []model.EnergyLog
+	db.Where("date >= ? AND date <= ?", windowStart, today).Order("date desc").Find(&energyLogs)
+	if len(energyLogs) > 0 {
+		sb.WriteString(fmt.Sprintf("\n【近 %d 天能量】\n", reviewWindowDays))
+		for _, e := range energyLogs {
+			sb.WriteString(fmt.Sprintf("- %s %d/5（%s）\n", mmdd(e.Date), e.EnergyLevel, energyLabels[e.EnergyLevel]))
+		}
+	}
+
+	// ── 焦虑暂存箱（未处理）──
+	var worries []model.WorryNote
+	db.Where("resolved = ?", false).Order("handle_date asc").Limit(15).Find(&worries)
+	if len(worries) > 0 {
+		sb.WriteString("\n【最近挂心的事（焦虑暂存箱·未处理）】\n")
+		for _, w := range worries {
+			status := "暂存"
+			if w.HandleDate <= today {
+				status = "待处理"
+			}
+			sb.WriteString(fmt.Sprintf("- [%s] %s（计划 %s 处理）\n", status, w.Content, mmdd(w.HandleDate)))
+		}
+	}
+
+	// ── 最近复盘小结（会话连续性）──
+	var reviews []model.ReviewLog
+	db.Order("date desc").Limit(3).Find(&reviews)
+	if len(reviews) > 0 {
+		sb.WriteString("\n【最近几次复盘小结】\n")
+		for _, r := range reviews {
+			sb.WriteString(fmt.Sprintf("- %s：%s\n", r.Date, r.Summary))
+		}
+	}
+
+	// ── 用户档案 ──
 	var stats model.UserStats
 	db.First(&stats)
-	statsStr := fmt.Sprintf("Lv.%d，总积分 %.0f，可用积分 %.0f，连续打卡 %d 天",
-		stats.Level, stats.TotalExp, stats.SpendableExp, stats.CurrentStreak)
+	sb.WriteString(fmt.Sprintf("\n【用户档案】\nLv.%d，总积分 %.0f，可用积分 %.0f，连续打卡 %d 天\n",
+		stats.Level, stats.TotalExp, stats.SpendableExp, stats.CurrentStreak))
 
-	return fmt.Sprintf(
-		"日期：%s\n今日睡眠：%s\n今日能量：%s\n今日任务：%s\n%s\n用户状态：%s",
-		today, sleepStr, energyStr, taskStr, weekSleepStr, statsStr,
-	)
+	return sb.String()
+}
+
+// mmdd 把 "2006-01-02" 缩成 "01-02"，容错非法输入
+func mmdd(date string) string {
+	if len(date) >= 10 {
+		return date[5:10]
+	}
+	return date
 }
 
 // getConfig 从 user_configs 读取配置，不存在时返回 fallback
