@@ -298,10 +298,12 @@ export default function ReviewPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && e.shiftKey) {
-                e.preventDefault()
-                sendMessage()
-              }
+              // 输入法组词时按 Enter 只是确认候选词，不能触发发送。
+              // e.nativeEvent.isComposing 在组词过程中为 true，keyCode===229 是老浏览器的兜底判断。
+              if (e.key !== 'Enter' || e.shiftKey) return
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return
+              e.preventDefault()
+              sendMessage()
             }}
             placeholder="今天怎么样？随便说说..."
             autoSize={{ minRows: 2, maxRows: 5 }}
@@ -318,7 +320,7 @@ export default function ReviewPage() {
               />
             </Tooltip>
           ) : (
-            <Tooltip title="发送 (Shift+Enter)">
+            <Tooltip title="发送 (Enter)">
               <Button
                 type="primary"
                 icon={<SendOutlined />}
@@ -329,7 +331,7 @@ export default function ReviewPage() {
           )}
         </div>
         <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>
-          说完发「总结一下」，我帮你整理今天 · Shift+Enter 发送，Enter 换行
+          说完发「总结一下」，我帮你整理今天 · Enter 发送，Shift+Enter 换行
         </Text>
       </div>
     </div>
