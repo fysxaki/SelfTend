@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AnalyticsItem, ChatMessage, EnergyLog, Prize, ReviewLog, Season, SleepLog, Task, TaskLog, UserStats, WorryNote } from '@/types'
+import type { AnalyticsItem, ChatMessage, EnergyLog, Prize, ReviewLog, Season, SleepLog, Task, TaskLog, UserStats, Wish, WorryNote } from '@/types'
 
 export const http = axios.create({
   baseURL: '/api',
@@ -120,3 +120,10 @@ export const updateWorry = (id: number, data: { content?: string; handle_date?: 
 export const resolveWorry = (id: number, resolved: boolean) =>
   http.post<WorryNote, WorryNote>(`/worries/${id}/resolve`, { resolved })
 export const deleteWorry = (id: number) => http.delete(`/worries/${id}`)
+
+// 心愿（特殊礼物）
+export type WishListResp = { wishes: Wish[]; price_cap_yuan: number; max_concurrent: number }
+export const getWishes = () => http.get<WishListResp, WishListResp>('/wishes')
+export const createWish = (data: { title: string; reason?: string; price_yuan: number; target_exp?: number }) =>
+  http.post<Wish, Wish>('/wishes', data)
+export const deleteWish = (id: number) => http.delete(`/wishes/${id}`)

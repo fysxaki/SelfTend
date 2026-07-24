@@ -455,8 +455,10 @@ func applyDurationBonus(db *gorm.DB, duration float64, date string) float64 {
 	// 保留 1 位小数
 	bonus = math.Round(bonus*10) / 10
 
-	stats.SpendableExp += bonus
 	stats.TotalExp += bonus
+	// 睡眠奖励同样优先注入进行中的心愿——早睡挣的分正是拿来还心愿的
+	routed := contributeActiveWish(db, bonus)
+	stats.SpendableExp += bonus - routed
 	stats.Level = calcLevel(stats.TotalExp)
 	db.Save(&stats)
 	return bonus

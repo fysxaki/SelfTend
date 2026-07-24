@@ -113,3 +113,16 @@ export interface WorryNote {
   resolved_at: string | null
   created_at: string
 }
+
+export interface Wish {
+  id: number
+  title: string
+  reason: string
+  price_yuan: number
+  target_exp: number
+  earned_exp: number
+  status: 'active' | 'done'
+  purchased_at: string
+  done_at: string | null
+  created_at: string
+}

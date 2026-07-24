@@ -35,6 +35,7 @@ func main() {
 		&model.ReviewLog{},
 		&model.UserConfig{},
 		&model.WorryNote{},
+		&model.Wish{},
 	)
 
 	// 仅初始化 UserStats（业务必须存在的系统记录）
@@ -110,6 +111,11 @@ func main() {
 		api.PUT("/worries/:id", handler.UpdateWorryNote(db))
 		api.POST("/worries/:id/resolve", handler.ResolveWorryNote(db))
 		api.DELETE("/worries/:id", handler.DeleteWorryNote(db))
+
+		// 心愿（特殊礼物 · 优先注入）
+		api.POST("/wishes", handler.CreateWish(db))
+		api.GET("/wishes", handler.GetWishes(db))
+		api.DELETE("/wishes/:id", handler.DeleteWish(db))
 	}
 
 	log.Println("Server running on :8080")

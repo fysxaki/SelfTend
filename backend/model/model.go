@@ -95,6 +95,22 @@ type UserConfig struct {
 	Value string `json:"value"`
 }
 
+// Wish 心愿：独立于普通奖励商店的「特殊礼物」。B 模式——先用真钱买下，
+// 之后新增积分 100% 优先注入，把「我纵容了自己」挣成「我应得的」。
+// 同时只允许 1 个进行中，单笔价格有上限（护栏，防冲动）。
+type Wish struct {
+	ID          uint       `json:"id" gorm:"primaryKey"`
+	Title       string     `json:"title"`        // 心愿名称
+	Reason      string     `json:"reason"`       // 为什么想要（给自己的一句话）
+	PriceYuan   float64    `json:"price_yuan"`   // 实际花的钱
+	TargetExp   float64    `json:"target_exp"`   // 要挣回的积分目标
+	EarnedExp   float64    `json:"earned_exp"`   // 已挣回的积分
+	Status      string     `json:"status"`       // active（挣回中）/ done（已还清）
+	PurchasedAt time.Time  `json:"purchased_at"` // 买下的时间
+	DoneAt      *time.Time `json:"done_at"`      // 还清时间
+	CreatedAt   time.Time  `json:"created_at"`
+}
+
 // WorryNote 焦虑暂存箱：深夜焦虑念头先记下，标一个「处理时间」，
 // 到时间再由清醒的自己处理，拦截「凌晨疯狂搜攻略」的死循环。
 type WorryNote struct {

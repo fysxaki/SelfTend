@@ -137,7 +137,9 @@ func updateUserStats(db *gorm.DB, expGained float64) {
 	var stats model.UserStats
 	db.First(&stats)
 	stats.TotalExp += expGained
-	stats.SpendableExp += expGained
+	// 有进行中的心愿时，可用积分优先注入心愿池（100%），只把溢出的留给可用
+	routed := contributeActiveWish(db, expGained)
+	stats.SpendableExp += expGained - routed
 
 	// 连续打卡：以 CST 日期字符串判断
 	todayCST := time.Now().In(cst).Format("2006-01-02")
