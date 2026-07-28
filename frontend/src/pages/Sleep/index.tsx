@@ -389,7 +389,7 @@ export default function SleepPage() {
                     value={sleepGoal}
                     onChange={(v) => v && setSleepGoal(v)}
                     format="HH:mm"
-                    minuteStep={30}
+                    minuteStep={10}
                     allowClear={false}
                     needConfirm={false}
                     inputReadOnly
