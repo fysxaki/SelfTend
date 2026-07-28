@@ -1,7 +1,11 @@
 import {
+  CheckCircleFilled,
   DeleteOutlined,
   EditOutlined,
+  MinusCircleOutlined,
   MoonOutlined,
+  PlusOutlined,
+  SettingOutlined,
   WarningOutlined,
 } from '@ant-design/icons'
 import {
@@ -10,9 +14,12 @@ import {
   Col,
   DatePicker,
   Form,
+  Input,
+  InputNumber,
   Modal,
   Popconfirm,
   Row,
+  Select,
   Space,
   Statistic,
   Table,
@@ -24,10 +31,14 @@ import {
 import { isWorkday } from 'chinese-days'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   createSleepLog,
   deleteSleepLog,
   getSleepLogs,
+  getUserConfig,
+  getWorries,
+  setUserConfig,
   updateSleepLog,
 } from '@/api'
 import { FloatingDecorations } from '@/components/Decorations'
@@ -47,6 +58,61 @@ const WORKDAY_WAKE = '07:35'
 // 预计睡眠时长默认 8h（最少 8h，最多 9h）；晚睡多时可在卡片上调 +0.5h / +1h
 const SLEEP_GOAL_MIN = '08:00'
 
+// 睡前倒计时：不排满整晚分钟级日程（容易被打乱后直接放弃），
+// 由用户自己配置几个关键锚点，从目标入睡时间往前倒推。
+// 锚点配置持久化在后端 UserConfig（key=wind_down_steps），跨设备不丢；
+// 每晚的打卡状态是当天临时状态，存本地即可。
+interface WindDownStep {
+  key: string        // React key + 打卡状态的存储 key，创建时生成，不需要用户填
+  offsetMin: number  // 提前多少分钟（相对目标入睡时间）
+  icon: string       // emoji
+  label: string
+  hint: string
+}
+
+const WIND_DOWN_CONFIG_KEY = 'wind_down_steps'
+const MAX_WIND_DOWN_STEPS = 6
+
+// 首次使用、或配置为空时的默认锚点（用户可在「配置」里改成任意内容）
+const DEFAULT_WIND_DOWN_STEPS: WindDownStep[] = [
+  { key: 'worry', offsetMin: 60, icon: '☁️', label: '焦虑暂存箱检查', hint: '把还悬着的事记下来，交给白天的自己' },
+  { key: 'phone', offsetMin: 30, icon: '📱', label: '手机离开卧室', hint: '充电器挪到房间外' },
+  { key: 'wind',  offsetMin: 10, icon: '🌙', label: '洗漱 · 关灯', hint: '准备躺下' },
+]
+
+const WIND_DOWN_ICON_PRESETS = ['☁️', '📱', '🌙', '🧴', '📖', '🛁', '🧘', '💡', '⏰', '🍵']
+
+function parseWindDownSteps(raw: string): WindDownStep[] {
+  if (!raw) return DEFAULT_WIND_DOWN_STEPS
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_WIND_DOWN_STEPS
+    return parsed.filter(
+      (s): s is WindDownStep =>
+        s && typeof s.label === 'string' && typeof s.offsetMin === 'number',
+    )
+  } catch {
+    return DEFAULT_WIND_DOWN_STEPS
+  }
+}
+
+const WIND_DOWN_STORAGE_KEY = 'selftend_wind_down'
+
+function loadWindDownChecks(today: string): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(WIND_DOWN_STORAGE_KEY)
+    if (!raw) return {}
+    const { date, checks } = JSON.parse(raw)
+    return date === today ? checks : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveWindDownChecks(today: string, checks: Record<string, boolean>) {
+  localStorage.setItem(WIND_DOWN_STORAGE_KEY, JSON.stringify({ date: today, checks }))
+}
+
 export default function SleepPage() {
   const { fetchStats } = useAppStore()
   const [logs, setLogs] = useState<SleepLog[]>([])
@@ -57,6 +123,53 @@ export default function SleepPage() {
   const [submitting, setSubmitting] = useState(false)
   // 工作日建议入睡所用的「今晚预计睡眠时长」，默认 8h，可在卡片上调到 9h
   const [sleepGoal, setSleepGoal] = useState<dayjs.Dayjs>(dayjs(SLEEP_GOAL_MIN, 'HH:mm'))
+  // 睡前倒计时：今晚各锚点的打卡状态（本地存储，跨日自动清空）
+  const todayForWindDown = dayjs().format('YYYY-MM-DD')
+  const [windDownChecks, setWindDownChecks] = useState<Record<string, boolean>>(() => loadWindDownChecks(todayForWindDown))
+  const [dueWorryCount, setDueWorryCount] = useState(0)
+  // 锚点配置：从后端加载，用户自己在「配置」弹窗里增删改
+  const [windDownSteps, setWindDownSteps] = useState<WindDownStep[]>(DEFAULT_WIND_DOWN_STEPS)
+  const [windDownConfigOpen, setWindDownConfigOpen] = useState(false)
+  const [windDownSaving, setWindDownSaving] = useState(false)
+  const [windDownForm] = Form.useForm()
+
+  useEffect(() => {
+    getWorries('due').then((list) => setDueWorryCount(list?.length ?? 0)).catch(() => {})
+    getUserConfig(WIND_DOWN_CONFIG_KEY).then((resp) => setWindDownSteps(parseWindDownSteps(resp.value))).catch(() => {})
+  }, [])
+
+  const toggleWindDownStep = (key: string) => {
+    setWindDownChecks((prev) => {
+      const next = { ...prev, [key]: !prev[key] }
+      saveWindDownChecks(todayForWindDown, next)
+      return next
+    })
+  }
+
+  const openWindDownConfig = () => {
+    windDownForm.setFieldsValue({ steps: windDownSteps })
+    setWindDownConfigOpen(true)
+  }
+
+  const handleSaveWindDownConfig = async () => {
+    try {
+      const values = await windDownForm.validateFields()
+      setWindDownSaving(true)
+      const steps: WindDownStep[] = (values.steps as WindDownStep[]).map((s, i) => ({
+        key: s.key || `step-${Date.now()}-${i}`,
+        offsetMin: s.offsetMin,
+        icon: s.icon || '🌙',
+        label: s.label,
+        hint: s.hint || '',
+      }))
+      await setUserConfig(WIND_DOWN_CONFIG_KEY, JSON.stringify(steps))
+      setWindDownSteps(steps)
+      setWindDownConfigOpen(false)
+      message.success('锚点配置已保存')
+    } finally {
+      setWindDownSaving(false)
+    }
+  }
 
   const loadLogs = async () => {
     setLoading(true)
@@ -184,6 +297,17 @@ export default function SleepPage() {
   const goalMinutes = sleepGoal.hour() * 60 + sleepGoal.minute()
   const workdayRecommended = shiftClockMinutes(WORKDAY_WAKE, -goalMinutes)
   const recommendedSleep = tomorrowIsWorkday ? workdayRecommended : recentStats.recommended
+
+  // 睡前倒计时的各锚点时间 = 目标入睡时间往前推 offsetMin 分钟，按 offsetMin 从大到小排（离目标最远的在最前）
+  const windDownAnchors = useMemo(() => {
+    if (!recommendedSleep) return []
+    return [...windDownSteps]
+      .sort((a, b) => b.offsetMin - a.offsetMin)
+      .map((step) => ({
+        ...step,
+        time: shiftClockMinutes(recommendedSleep, -step.offsetMin),
+      }))
+  }, [recommendedSleep, windDownSteps])
 
   const columns = [
     {
@@ -408,6 +532,136 @@ export default function SleepPage() {
           </Col>
         </Row>
       )}
+
+      {/* 睡前倒计时：从目标入睡时间往前推几个关键锚点（用户自定义），不排满整晚，留白抗打乱 */}
+      {windDownAnchors.length > 0 && (
+        <Card
+          size="small"
+          style={{ marginBottom: 16, background: '#fff', border: '1px solid #c8dcd6' }}
+          title={
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#3d6d68' }}>
+              🌙 今晚倒计时 · 目标 {recommendedSleep}
+            </span>
+          }
+          extra={
+            <Button size="small" type="text" icon={<SettingOutlined />} onClick={openWindDownConfig}>
+              配置
+            </Button>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {windDownAnchors.map((step) => {
+              const checked = !!windDownChecks[step.key]
+              const isWorryStep = step.label.includes('焦虑') || step.hint.includes('焦虑')
+              return (
+                <div
+                  key={step.key}
+                  onClick={() => toggleWindDownStep(step.key)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 10px', borderRadius: 10, cursor: 'pointer',
+                    background: checked ? '#f0fdfa' : '#f7faf8',
+                    border: `1px solid ${checked ? '#a7f3d0' : '#e5e7eb'}`,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <span style={{ fontSize: 16, flexShrink: 0 }}>
+                    {checked ? <CheckCircleFilled style={{ color: '#4a8a83' }} /> : step.icon}
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#3d6d68', flexShrink: 0, width: 48 }}>
+                    {step.time}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{
+                      fontSize: 13, color: checked ? '#9ca3af' : '#1e1826',
+                      textDecoration: checked ? 'line-through' : 'none',
+                    }}>
+                      {step.label}
+                    </span>
+                    {step.hint && <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 8 }}>{step.hint}</span>}
+                  </div>
+                  {isWorryStep && dueWorryCount > 0 && (
+                    <Link
+                      to="/worry"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        fontSize: 11, color: '#d97706', background: '#fef3c7',
+                        padding: '1px 8px', borderRadius: 10, flexShrink: 0,
+                      }}
+                    >
+                      {dueWorryCount} 条待处理 →
+                    </Link>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      )}
+
+      {/* 锚点配置弹窗 */}
+      <Modal
+        title="配置睡前倒计时锚点"
+        open={windDownConfigOpen}
+        onOk={handleSaveWindDownConfig}
+        onCancel={() => setWindDownConfigOpen(false)}
+        confirmLoading={windDownSaving}
+        okText="保存"
+        cancelText="取消"
+        width={560}
+      >
+        <p style={{ color: '#6b7280', fontSize: 13, margin: '8px 0 16px' }}>
+          「提前 N 分钟」是相对今晚目标入睡时间的偏移，建议只设几个关键点，别排满整晚——排太满一旦被打乱容易直接放弃。
+        </p>
+        <Form form={windDownForm} layout="vertical">
+          <Form.List name="steps">
+            {(fields, { add, remove }) => (
+              <div>
+                {fields.map((field) => (
+                  <Space.Compact key={field.key} style={{ display: 'flex', marginBottom: 8 }}>
+                    <Form.Item name={[field.name, 'key']} noStyle hidden><Input /></Form.Item>
+                    <Form.Item name={[field.name, 'icon']} noStyle>
+                      <Select
+                        placeholder="🌙"
+                        style={{ width: 72 }}
+                        options={WIND_DOWN_ICON_PRESETS.map((emoji) => ({ value: emoji, label: emoji }))}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name={[field.name, 'offsetMin']}
+                      noStyle
+                      rules={[{ required: true, message: '提前分钟' }]}
+                    >
+                      <InputNumber min={0} max={240} step={5} placeholder="提前分钟" style={{ width: 100 }} addonAfter="分" />
+                    </Form.Item>
+                    <Form.Item
+                      name={[field.name, 'label']}
+                      noStyle
+                      rules={[{ required: true, message: '请填名称' }]}
+                    >
+                      <Input placeholder="名称（如 手机离开卧室）" style={{ flex: 1 }} />
+                    </Form.Item>
+                    <Form.Item name={[field.name, 'hint']} noStyle>
+                      <Input placeholder="备注（可选）" style={{ width: 140 }} />
+                    </Form.Item>
+                    <Button type="text" danger icon={<MinusCircleOutlined />} onClick={() => remove(field.name)} />
+                  </Space.Compact>
+                ))}
+                {fields.length < MAX_WIND_DOWN_STEPS && (
+                  <Button
+                    type="dashed"
+                    onClick={() => add({ icon: '🌙', offsetMin: 30, label: '', hint: '' })}
+                    icon={<PlusOutlined />}
+                    block
+                  >
+                    添加锚点
+                  </Button>
+                )}
+              </div>
+            )}
+          </Form.List>
+        </Form>
+      </Modal>
 
       {/* 记录列表 */}
       <Card>

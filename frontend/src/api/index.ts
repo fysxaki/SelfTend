@@ -127,3 +127,9 @@ export const getWishes = () => http.get<WishListResp, WishListResp>('/wishes')
 export const createWish = (data: { title: string; reason?: string; price_yuan: number; target_exp?: number }) =>
   http.post<Wish, Wish>('/wishes', data)
 export const deleteWish = (id: number) => http.delete(`/wishes/${id}`)
+
+// 通用用户配置（key-value）
+export const getUserConfig = (key: string) =>
+  http.get<{ key: string; value: string }, { key: string; value: string }>(`/config/${key}`)
+export const setUserConfig = (key: string, value: string) =>
+  http.put<{ key: string; value: string }, { key: string; value: string }>(`/config/${key}`, { value })
