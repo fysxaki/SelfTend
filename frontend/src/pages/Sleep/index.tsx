@@ -122,10 +122,10 @@ export default function SleepPage() {
   const [editingLog, setEditingLog] = useState<SleepLog | null>(null)
   const [form] = Form.useForm()
   const [submitting, setSubmitting] = useState(false)
-  // 工作日建议入睡所用的「今晚预计睡眠时长」，默认 8h，可在卡片上调到 9h
+  // 今晚预计睡眠时长（工作日 / 休息日通用），默认 8h，可在卡片上调到 9h
   const [sleepGoal, setSleepGoal] = useState<dayjs.Dayjs>(dayjs(SLEEP_GOAL_MIN, 'HH:mm'))
-  // 休息日手动指定的目标入睡时间；null 表示沿用「平均 −20min」的推荐值
-  const [restOverride, setRestOverride] = useState<dayjs.Dayjs | null>(null)
+  // 休息日「放纵一下」：开启后不按睡够时长倒推，改用宽松的习惯窗口（平均入睡 −20min）
+  const [indulge, setIndulge] = useState(false)
   // 手机壁纸视图（19.8:9 竖版，截图后设为锁屏壁纸）
   const [wallpaperOpen, setWallpaperOpen] = useState(false)
   // 睡前倒计时：今晚各锚点的打卡状态（本地存储，跨日自动清空）
@@ -296,15 +296,21 @@ export default function SleepPage() {
     }
   }, [logs])
 
-  // 明天（起床那天）是否工作日 → 决定建议入睡走哪套逻辑
+  // 明天（起床那天）是否工作日 → 决定用哪个起床时间倒推
   const tomorrowIsWorkday = isWorkday(dayjs().add(1, 'day').format('YYYY-MM-DD'))
-  // 工作日：07:35 − 预计睡眠时长；休息日：习惯窗口推荐值，但允许手动覆盖（也想早睡时）
+  // 默认都是「起床时间 − 预计睡眠时长」，只是起床时间来源不同：
+  // - 工作日：固定 07:35
+  // - 休息日：近 14 天平均起床时间
+  // 休息日额外提供「放纵一下」开关：切回宽松的习惯窗口逻辑（平均入睡 −20min），
+  // 没有历史起床数据时也自动走这条。
   const goalMinutes = sleepGoal.hour() * 60 + sleepGoal.minute()
-  const workdayRecommended = shiftClockMinutes(WORKDAY_WAKE, -goalMinutes)
-  const restDayRecommended = restOverride
-    ? restOverride.format('HH:mm')
-    : recentStats.recommended
-  const recommendedSleep = tomorrowIsWorkday ? workdayRecommended : restDayRecommended
+  const restWake = recentStats.avgWakeTime
+  const restUseLoose = indulge || !restWake
+  const recommendedSleep = tomorrowIsWorkday
+    ? shiftClockMinutes(WORKDAY_WAKE, -goalMinutes)
+    : restUseLoose
+      ? recentStats.recommended
+      : shiftClockMinutes(restWake!, -goalMinutes)
 
   // 睡前倒计时的各锚点时间 = 目标入睡时间往前推 offsetMin 分钟，按 offsetMin 从大到小排（离目标最远的在最前）
   const windDownAnchors = useMemo(() => {
@@ -505,18 +511,43 @@ export default function SleepPage() {
                 border: '1px solid #b8d8d3',
               }}
             >
-              <Statistic
-                title={<span style={{ fontSize: 12, color: '#3d6d68' }}>
-                  💡 今晚建议入睡{tomorrowIsWorkday
-                    ? '（工作日 · 起床 7:35）'
-                    : restOverride
-                      ? '（休息日 · 自己定的）'
-                      : recentStats.recommendedFloored ? '（休息日 · 已是最早）' : '（休息日 · 提前 20 分钟）'}
-                </span>}
-                value={recommendedSleep ?? '—'}
-                valueStyle={{ color: '#3d6d68', fontSize: 22, fontWeight: 700 }}
-              />
-              {tomorrowIsWorkday ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                <Statistic
+                  title={<span style={{ fontSize: 12, color: '#3d6d68' }}>
+                    💡 今晚建议入睡{tomorrowIsWorkday
+                      ? '（工作日 · 起床 7:35）'
+                      : indulge
+                        ? '（休息日 · 放纵中）'
+                        : restWake
+                          ? `（休息日 · 起床 ${restWake}）`
+                          : '（休息日 · 提前 20 分钟）'}
+                  </span>}
+                  value={recommendedSleep ?? '—'}
+                  valueStyle={{
+                    color: indulge && !tomorrowIsWorkday ? '#c2410c' : '#3d6d68',
+                    fontSize: 22, fontWeight: 700,
+                  }}
+                />
+                {/* 休息日专属：放纵一下 —— 不按睡够时长倒推，改用宽松的习惯窗口 */}
+                {!tomorrowIsWorkday && (
+                  <Tooltip title={indulge ? '点一下回到「睡够时长」模式' : '明天不上班，按平时习惯就好（平均入睡 −20min）'}>
+                    <Button
+                      size="small"
+                      onClick={() => setIndulge((v) => !v)}
+                      style={{
+                        fontSize: 11, flexShrink: 0, marginTop: 2,
+                        background: indulge ? '#fff7ed' : undefined,
+                        borderColor: indulge ? '#fdba74' : undefined,
+                        color: indulge ? '#c2410c' : '#3d6d68',
+                      }}
+                    >
+                      {indulge ? '🛋️ 放纵中' : '🛋️ 放纵一下'}
+                    </Button>
+                  </Tooltip>
+                )}
+              </div>
+              {/* 预计睡眠时长：仅在「睡够时长」模式下有意义，限制 8h ~ 9h */}
+              {(tomorrowIsWorkday || (restWake && !indulge)) && (
                 <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 12, color: '#3d6d68' }}>预计睡</span>
                   <TimePicker
@@ -536,26 +567,6 @@ export default function SleepPage() {
                     })}
                     hideDisabledOptions
                   />
-                </div>
-              ) : (
-                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 12, color: '#3d6d68' }}>想早睡</span>
-                  <TimePicker
-                    value={restOverride}
-                    onChange={(v) => setRestOverride(v)}
-                    format="HH:mm"
-                    minuteStep={10}
-                    needConfirm={false}
-                    inputReadOnly
-                    size="small"
-                    style={{ width: 96 }}
-                    placeholder="自己定"
-                  />
-                  {restOverride && (
-                    <Button size="small" type="text" onClick={() => setRestOverride(null)} style={{ fontSize: 11, padding: '0 4px' }}>
-                      用推荐
-                    </Button>
-                  )}
                 </div>
               )}
             </Card>
