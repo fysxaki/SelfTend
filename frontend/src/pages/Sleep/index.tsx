@@ -3,6 +3,7 @@ import {
   DeleteOutlined,
   EditOutlined,
   MinusCircleOutlined,
+  MobileOutlined,
   MoonOutlined,
   PlusOutlined,
   SettingOutlined,
@@ -123,6 +124,10 @@ export default function SleepPage() {
   const [submitting, setSubmitting] = useState(false)
   // 工作日建议入睡所用的「今晚预计睡眠时长」，默认 8h，可在卡片上调到 9h
   const [sleepGoal, setSleepGoal] = useState<dayjs.Dayjs>(dayjs(SLEEP_GOAL_MIN, 'HH:mm'))
+  // 休息日手动指定的目标入睡时间；null 表示沿用「平均 −20min」的推荐值
+  const [restOverride, setRestOverride] = useState<dayjs.Dayjs | null>(null)
+  // 手机壁纸视图（19.8:9 竖版，截图后设为锁屏壁纸）
+  const [wallpaperOpen, setWallpaperOpen] = useState(false)
   // 睡前倒计时：今晚各锚点的打卡状态（本地存储，跨日自动清空）
   const todayForWindDown = dayjs().format('YYYY-MM-DD')
   const [windDownChecks, setWindDownChecks] = useState<Record<string, boolean>>(() => loadWindDownChecks(todayForWindDown))
@@ -293,10 +298,13 @@ export default function SleepPage() {
 
   // 明天（起床那天）是否工作日 → 决定建议入睡走哪套逻辑
   const tomorrowIsWorkday = isWorkday(dayjs().add(1, 'day').format('YYYY-MM-DD'))
-  // 工作日：07:35 − 预计睡眠时长；休息日：沿用习惯窗口推荐值
+  // 工作日：07:35 − 预计睡眠时长；休息日：习惯窗口推荐值，但允许手动覆盖（也想早睡时）
   const goalMinutes = sleepGoal.hour() * 60 + sleepGoal.minute()
   const workdayRecommended = shiftClockMinutes(WORKDAY_WAKE, -goalMinutes)
-  const recommendedSleep = tomorrowIsWorkday ? workdayRecommended : recentStats.recommended
+  const restDayRecommended = restOverride
+    ? restOverride.format('HH:mm')
+    : recentStats.recommended
+  const recommendedSleep = tomorrowIsWorkday ? workdayRecommended : restDayRecommended
 
   // 睡前倒计时的各锚点时间 = 目标入睡时间往前推 offsetMin 分钟，按 offsetMin 从大到小排（离目标最远的在最前）
   const windDownAnchors = useMemo(() => {
@@ -501,12 +509,14 @@ export default function SleepPage() {
                 title={<span style={{ fontSize: 12, color: '#3d6d68' }}>
                   💡 今晚建议入睡{tomorrowIsWorkday
                     ? '（工作日 · 起床 7:35）'
-                    : recentStats.recommendedFloored ? '（休息日 · 已是最早）' : '（休息日 · 提前 20 分钟）'}
+                    : restOverride
+                      ? '（休息日 · 自己定的）'
+                      : recentStats.recommendedFloored ? '（休息日 · 已是最早）' : '（休息日 · 提前 20 分钟）'}
                 </span>}
                 value={recommendedSleep ?? '—'}
                 valueStyle={{ color: '#3d6d68', fontSize: 22, fontWeight: 700 }}
               />
-              {tomorrowIsWorkday && (
+              {tomorrowIsWorkday ? (
                 <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 12, color: '#3d6d68' }}>预计睡</span>
                   <TimePicker
@@ -527,6 +537,26 @@ export default function SleepPage() {
                     hideDisabledOptions
                   />
                 </div>
+              ) : (
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, color: '#3d6d68' }}>想早睡</span>
+                  <TimePicker
+                    value={restOverride}
+                    onChange={(v) => setRestOverride(v)}
+                    format="HH:mm"
+                    minuteStep={10}
+                    needConfirm={false}
+                    inputReadOnly
+                    size="small"
+                    style={{ width: 96 }}
+                    placeholder="自己定"
+                  />
+                  {restOverride && (
+                    <Button size="small" type="text" onClick={() => setRestOverride(null)} style={{ fontSize: 11, padding: '0 4px' }}>
+                      用推荐
+                    </Button>
+                  )}
+                </div>
               )}
             </Card>
           </Col>
@@ -544,9 +574,14 @@ export default function SleepPage() {
             </span>
           }
           extra={
-            <Button size="small" type="text" icon={<SettingOutlined />} onClick={openWindDownConfig}>
-              配置
-            </Button>
+            <Space size={0}>
+              <Button size="small" type="text" icon={<MobileOutlined />} onClick={() => setWallpaperOpen(true)}>
+                壁纸
+              </Button>
+              <Button size="small" type="text" icon={<SettingOutlined />} onClick={openWindDownConfig}>
+                配置
+              </Button>
+            </Space>
           }
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -598,6 +633,29 @@ export default function SleepPage() {
           </div>
         </Card>
       )}
+
+      {/* 手机壁纸视图：19.8:9 竖版，截图后可设为锁屏壁纸 */}
+      <Modal
+        title="锁屏壁纸 · 长按截图保存"
+        open={wallpaperOpen}
+        onCancel={() => setWallpaperOpen(false)}
+        footer={null}
+        centered
+        width={360}
+        styles={{ body: { display: 'flex', justifyContent: 'center', padding: '8px 0 4px' } }}
+      >
+        <div>
+          <WallpaperView
+            anchors={windDownAnchors}
+            targetTime={recommendedSleep}
+            isWorkday={tomorrowIsWorkday}
+          />
+          <p style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', marginTop: 10, lineHeight: 1.6 }}>
+            按 19.8:9 排版（2376×1080）<br />
+            手机上打开本页 → 截图 → 裁掉上下边缘 → 设为锁屏壁纸
+          </p>
+        </div>
+      </Modal>
 
       {/* 锚点配置弹窗 */}
       <Modal
@@ -730,6 +788,104 @@ export default function SleepPage() {
           </Form.Item>
         </Form>
       </Modal>
+    </div>
+  )
+}
+
+// ─── 手机壁纸视图 ────────────────────────────────────────────
+// 按 19.8:9（2376×1080）比例排版。用 CSS 变量 --u 做缩放单位，
+// 所有尺寸以 --u 为基准，改预览宽度时整体等比缩放，截图不会变形。
+
+interface WallpaperAnchor {
+  key: string
+  icon: string
+  label: string
+  hint: string
+  time: string
+}
+
+function WallpaperView({
+  anchors,
+  targetTime,
+  isWorkday: workday,
+}: {
+  anchors: WallpaperAnchor[]
+  targetTime: string | null
+  isWorkday: boolean
+}) {
+  // 预览宽度 300px；真机 1080px 宽 → 缩放系数 300/1080
+  const previewWidth = 300
+  const scale = previewWidth / 1080
+  const u = (px: number) => `${Math.round(px * scale * 100) / 100}px`
+
+  return (
+    <div
+      style={{
+        width: previewWidth,
+        height: previewWidth * (2376 / 1080), // 19.8:9
+        background: 'linear-gradient(170deg, #0b1f1d 0%, #123330 45%, #1a4642 100%)',
+        borderRadius: u(56),
+        padding: `${u(150)} ${u(72)} ${u(120)}`,
+        display: 'flex',
+        flexDirection: 'column',
+        color: '#e6f1ee',
+        overflow: 'hidden',
+        position: 'relative',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.28)',
+      }}
+    >
+      {/* 顶部留白：给系统时钟让位（锁屏时钟通常在上 1/4） */}
+      <div style={{ flex: '0 0 auto', height: u(300) }} />
+
+      {/* 目标入睡时间 */}
+      <div style={{ textAlign: 'center', marginBottom: u(110) }}>
+        <div style={{ fontSize: u(38), letterSpacing: u(6), color: '#7fb3ac', marginBottom: u(18) }}>
+          今晚睡觉
+        </div>
+        <div style={{ fontSize: u(150), fontWeight: 200, lineHeight: 1, letterSpacing: u(-2), color: '#fff' }}>
+          {targetTime ?? '--:--'}
+        </div>
+        <div style={{ fontSize: u(30), color: '#5d8f89', marginTop: u(20) }}>
+          {workday ? '明天上班 · 起床 7:35' : '休息日'}
+        </div>
+      </div>
+
+      {/* 锚点列表 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: u(46) }}>
+        {anchors.map((step) => (
+          <div key={step.key} style={{ display: 'flex', alignItems: 'center', gap: u(34) }}>
+            <span style={{ fontSize: u(52), flexShrink: 0, width: u(64), textAlign: 'center' }}>
+              {step.icon}
+            </span>
+            <span
+              style={{
+                fontSize: u(60),
+                fontWeight: 500,
+                color: '#fff',
+                fontVariantNumeric: 'tabular-nums',
+                flexShrink: 0,
+                width: u(180),
+              }}
+            >
+              {step.time}
+            </span>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: u(40), color: '#cfe3df', lineHeight: 1.25 }}>{step.label}</div>
+              {step.hint && (
+                <div style={{ fontSize: u(28), color: '#5d8f89', marginTop: u(6), lineHeight: 1.3 }}>
+                  {step.hint}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 底部留白：避开解锁区域 */}
+      <div style={{ flex: 1 }} />
+      <div style={{ textAlign: 'center', fontSize: u(26), color: '#3f6b66', letterSpacing: u(4) }}>
+        SelfTend
+      </div>
     </div>
   )
 }
