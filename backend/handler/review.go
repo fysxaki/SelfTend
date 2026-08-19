@@ -71,6 +71,21 @@ const defaultGoals = `（暂未设置，请在数据库中写入 goals 配置）
 type DSMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+	// 以下为 tool-calling 用（复盘对话不填，omitempty 保证不影响原行为）
+	ToolCalls  []DSToolCall `json:"tool_calls,omitempty"`  // assistant 发起的工具调用
+	ToolCallID string       `json:"tool_call_id,omitempty"` // role=tool 时对应的调用 id
+	Name       string       `json:"name,omitempty"`         // role=tool 时的工具名
+}
+
+type DSToolCall struct {
+	ID       string         `json:"id"`
+	Type     string         `json:"type"` // 恒为 "function"
+	Function DSFunctionCall `json:"function"`
+}
+
+type DSFunctionCall struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"` // JSON 字符串
 }
 
 type DSRequest struct {
@@ -79,11 +94,14 @@ type DSRequest struct {
 	Temperature float64     `json:"temperature"`
 	MaxTokens   int         `json:"max_tokens"`
 	Stream      bool        `json:"stream"`
+	Tools       []DSTool    `json:"tools,omitempty"`
+	ToolChoice  string      `json:"tool_choice,omitempty"`
 }
 
 type DSResponse struct {
 	Choices []struct {
-		Message DSMessage `json:"message"`
+		Message      DSMessage `json:"message"`
+		FinishReason string    `json:"finish_reason"`
 	} `json:"choices"`
 	Error *struct {
 		Message string `json:"message"`

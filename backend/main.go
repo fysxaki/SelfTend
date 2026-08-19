@@ -103,6 +103,9 @@ func main() {
 		// 数据分析（睡眠 + 能量聚合）
 		api.GET("/analytics", handler.GetAnalytics(db))
 
+		// AI Agent（工具调用：读自动执行 / 写提议待确认）
+		api.POST("/agent/chat", handler.AgentChat(db))
+
 		// 每日复盘
 		api.POST("/review/chat", handler.Chat(db))
 		api.POST("/review/save", handler.SaveReview(db))
