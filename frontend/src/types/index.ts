@@ -64,6 +64,15 @@ export interface Prize {
   redeemed_at: string | null
 }
 
+export interface RedemptionLog {
+  id: number
+  prize_id: number
+  prize_name: string
+  prize_category: PrizeCategory
+  cost: number
+  redeemed_at: string
+}
+
 export interface SleepLog {
   id: number
   date: string        // YYYY-MM-DD

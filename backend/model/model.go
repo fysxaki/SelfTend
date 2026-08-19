@@ -55,6 +55,18 @@ type Prize struct {
 	RedeemedAt  *time.Time `json:"redeemed_at"`
 }
 
+// RedemptionLog 兑换流水（快照）。
+// 奖品可被编辑/删除，所以这里不存外键关联而是快照当时的名称/分类/花费，
+// 这样即使奖品行被删，历史兑换记录仍然完整可查。
+type RedemptionLog struct {
+	ID            uint      `json:"id" gorm:"primaryKey"`
+	PrizeID       uint      `json:"prize_id"`       // 仅作参考，奖品可能已被删
+	PrizeName     string    `json:"prize_name"`     // 兑换时的奖品名快照
+	PrizeCategory string    `json:"prize_category"` // 兑换时的分类快照
+	Cost          float64   `json:"cost"`           // 兑换时花费的积分快照
+	RedeemedAt    time.Time `json:"redeemed_at"`    // 兑换时间
+}
+
 // SleepLog 睡眠记录
 type SleepLog struct {
 	ID         uint      `json:"id" gorm:"primaryKey"`

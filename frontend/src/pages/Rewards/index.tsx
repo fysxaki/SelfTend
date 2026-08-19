@@ -2,22 +2,25 @@ import {
   CheckCircleFilled,
   DeleteOutlined,
   EditOutlined,
+  HistoryOutlined,
   LockOutlined,
   PlusOutlined,
   ShoppingOutlined,
 } from '@ant-design/icons'
-import { Button, Form, Input, InputNumber, Modal, Select, message } from 'antd'
+import { Button, Drawer, Form, Input, InputNumber, Modal, Select, Table, message } from 'antd'
+import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import {
   createPrize,
   deletePrize,
   getPrizes,
+  getRedemptions,
   redeemPrize,
   updatePrize,
 } from '@/api'
 import { FloatingDecorations } from '@/components/Decorations'
 import { useAppStore } from '@/stores/useAppStore'
-import type { Prize } from '@/types'
+import type { Prize, RedemptionLog } from '@/types'
 import { formatExp } from '@/utils/task'
 
 const CATEGORY_META: Record<string, { icon: string; label: string }> = {
@@ -39,6 +42,9 @@ export default function Rewards() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Prize | null>(null)
   const [form] = Form.useForm()
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [redemptions, setRedemptions] = useState<RedemptionLog[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   const fetchData = async () => {
     const [p] = await Promise.all([getPrizes(), fetchStats()])
@@ -89,6 +95,16 @@ export default function Rewards() {
     }
     setModalOpen(false)
     fetchData()
+  }
+
+  const openHistory = async () => {
+    setHistoryOpen(true)
+    setHistoryLoading(true)
+    try {
+      setRedemptions(await getRedemptions())
+    } finally {
+      setHistoryLoading(false)
+    }
   }
 
   const handleRedeem = (prize: Prize) => {
@@ -177,6 +193,14 @@ export default function Rewards() {
             style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff' }}
           >
             添加奖品
+          </Button>
+          <Button
+            icon={<HistoryOutlined />}
+            size="small"
+            onClick={openHistory}
+            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff' }}
+          >
+            兑换记录
           </Button>
         </div>
       </div>
@@ -323,6 +347,48 @@ export default function Rewards() {
           </div>
         </Form>
       </Modal>
+
+      {/* 兑换记录抽屉 */}
+      <Drawer
+        title="兑换记录"
+        placement="right"
+        width={480}
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+      >
+        <Table
+          dataSource={redemptions}
+          rowKey="id"
+          loading={historyLoading}
+          pagination={false}
+          size="small"
+          locale={{ emptyText: '还没有兑换过任何奖品' }}
+          columns={[
+            {
+              title: '奖品',
+              dataIndex: 'prize_name',
+              key: 'prize_name',
+              render: (name: string, r: RedemptionLog) => {
+                const meta = CATEGORY_META[r.prize_category] ?? CATEGORY_META.other
+                return <span>{meta.icon} {name}</span>
+              },
+            },
+            {
+              title: '花费',
+              dataIndex: 'cost',
+              key: 'cost',
+              align: 'right',
+              render: (cost: number) => `${formatExp(cost)} 分`,
+            },
+            {
+              title: '兑换时间',
+              dataIndex: 'redeemed_at',
+              key: 'redeemed_at',
+              render: (t: string) => dayjs(t).format('MM/DD HH:mm'),
+            },
+          ]}
+        />
+      </Drawer>
     </div>
   )
 }

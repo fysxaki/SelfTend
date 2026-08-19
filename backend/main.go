@@ -30,6 +30,7 @@ func main() {
 		&model.TaskLog{},
 		&model.UserStats{},
 		&model.Prize{},
+		&model.RedemptionLog{},
 		&model.SleepLog{},
 		&model.EnergyLog{},
 		&model.ReviewLog{},
@@ -83,6 +84,7 @@ func main() {
 		api.PUT("/prizes/:id", handler.UpdatePrize(db))
 		api.DELETE("/prizes/:id", handler.DeletePrize(db))
 		api.POST("/prizes/:id/redeem", handler.RedeemPrize(db))
+		api.GET("/redemptions", handler.GetRedemptions(db))
 
 		// 睡眠记录
 		api.POST("/sleep-logs", handler.CreateSleepLog(db))

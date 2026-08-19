@@ -89,7 +89,19 @@ func RedeemPrize(db *gorm.DB) gin.HandlerFunc {
 			now := time.Now()
 			prize.Redeemed = true
 			prize.RedeemedAt = &now
-			return tx.Save(&prize).Error
+			if err := tx.Save(&prize).Error; err != nil {
+				return err
+			}
+
+			// 写一条兑换流水（快照奖品信息，奖品日后被删也不丢历史）
+			redemption := model.RedemptionLog{
+				PrizeID:       prize.ID,
+				PrizeName:     prize.Name,
+				PrizeCategory: prize.Category,
+				Cost:          prize.Cost,
+				RedeemedAt:    now,
+			}
+			return tx.Create(&redemption).Error
 		})
 
 		if err != nil {
@@ -107,5 +119,15 @@ func RedeemPrize(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"prize": prize, "stats": stats})
+	}
+}
+
+// GetRedemptions 返回兑换流水（按兑换时间倒序），默认最多 100 条
+func GetRedemptions(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
+		var logs []model.RedemptionLog
+		db.Order("redeemed_at desc").Limit(limit).Find(&logs)
+		c.JSON(http.StatusOK, logs)
 	}
 }

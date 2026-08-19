@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AnalyticsItem, ChatMessage, EnergyLog, Prize, ReviewLog, Season, SleepLog, Task, TaskLog, UserStats, Wish, WorryNote } from '@/types'
+import type { AnalyticsItem, ChatMessage, EnergyLog, Prize, RedemptionLog, ReviewLog, Season, SleepLog, Task, TaskLog, UserStats, Wish, WorryNote } from '@/types'
 
 export const http = axios.create({
   baseURL: '/api',
@@ -79,6 +79,8 @@ export const redeemPrize = (id: number) =>
   http.post<{ prize: Prize; stats: UserStats }, { prize: Prize; stats: UserStats }>(
     `/prizes/${id}/redeem`,
   )
+export const getRedemptions = () =>
+  http.get<RedemptionLog[], RedemptionLog[]>('/redemptions')
 
 // SleepLogs
 export const createSleepLog = (data: { date?: string; sleep_time: string; wake_time?: string }) =>
