@@ -131,3 +131,43 @@ func GetRedemptions(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, logs)
 	}
 }
+
+// BackfillRedemptions 一次性回填历史兑换流水：
+// 兑换记录功能上线前兑换的奖品没写流水，这里扫描仍留在商店里、标记了 redeemed 的奖品，
+// 按其快照补写一条 RedemptionLog。按 prize_id 去重，重复运行安全（幂等）。
+// 注意：兑换后又被删除的奖品无法找回（奖品行已不存在）。
+func BackfillRedemptions(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var prizes []model.Prize
+		db.Where("redeemed = ?", true).Find(&prizes)
+
+		created := 0
+		skipped := 0
+		for _, p := range prizes {
+			// 已有该奖品的流水则跳过，避免重复补
+			var count int64
+			db.Model(&model.RedemptionLog{}).Where("prize_id = ?", p.ID).Count(&count)
+			if count > 0 {
+				skipped++
+				continue
+			}
+
+			// redeemed=true 正常都带 RedeemedAt；极旧数据缺失时用当前时间兜底
+			redeemedAt := time.Now()
+			if p.RedeemedAt != nil {
+				redeemedAt = *p.RedeemedAt
+			}
+
+			db.Create(&model.RedemptionLog{
+				PrizeID:       p.ID,
+				PrizeName:     p.Name,
+				PrizeCategory: p.Category,
+				Cost:          p.Cost,
+				RedeemedAt:    redeemedAt,
+			})
+			created++
+		}
+
+		c.JSON(http.StatusOK, gin.H{"created": created, "skipped": skipped})
+	}
+}

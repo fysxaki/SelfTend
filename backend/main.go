@@ -85,6 +85,7 @@ func main() {
 		api.DELETE("/prizes/:id", handler.DeletePrize(db))
 		api.POST("/prizes/:id/redeem", handler.RedeemPrize(db))
 		api.GET("/redemptions", handler.GetRedemptions(db))
+		api.POST("/redemptions/backfill", handler.BackfillRedemptions(db))
 
 		// 睡眠记录
 		api.POST("/sleep-logs", handler.CreateSleepLog(db))
