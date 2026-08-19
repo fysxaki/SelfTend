@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   completeTask,
   createEnergyLog,
+  createSleepLog,
   createWorry,
   redeemPrize,
 } from '@/api'
@@ -34,8 +35,28 @@ const TOOL_LABELS: Record<string, string> = {
   get_redemptions: '查询兑换记录',
   complete_task: '准备完成任务',
   log_energy: '准备记录能量',
+  log_sleep: '准备记录睡眠',
   add_worry: '准备暂存焦虑',
   redeem_prize: '准备兑换奖品',
+}
+
+// 快捷记录模板：点击填入输入框，光标自动定位到第一个【空缺】，Tab 跳到下一处
+const QUICK_PROMPTS: { label: string; tpl: string }[] = [
+  { label: '🌙 记录昨天睡眠', tpl: '帮我记录昨天睡眠：【23:30】睡到【08:00】' },
+  { label: '🌙 记录某天睡眠', tpl: '帮我记录【8月18日】睡眠：【23:30】睡到【08:00】' },
+  { label: '✅ 记录今天完成的任务', tpl: '帮我记录今天完成了：【任务名】' },
+]
+
+// 匹配模板里的空缺占位（含中括号），选中后打字即可替换
+const BLANK_RE = /【[^】]*】/
+
+// 从 from 位置起选中下一个【空缺】，成功返回 true
+function selectBlankFrom(el: HTMLTextAreaElement, from: number): boolean {
+  const m = BLANK_RE.exec(el.value.slice(from))
+  if (!m) return false
+  const start = from + m.index
+  el.setSelectionRange(start, start + m[0].length)
+  return true
 }
 
 type ProposalStatus = 'pending' | 'done' | 'cancelled'
@@ -75,6 +96,17 @@ export default function AgentPage() {
       }
       return next
     })
+  }
+
+  // 点击快捷模板：填入输入框并把光标定位到第一个【空缺】
+  const applyTemplate = (tpl: string) => {
+    setInput(tpl)
+    setTimeout(() => {
+      const el = document.getElementById('agent-input') as HTMLTextAreaElement | null
+      if (!el) return
+      el.focus()
+      if (!selectBlankFrom(el, 0)) el.setSelectionRange(el.value.length, el.value.length)
+    }, 0)
   }
 
   const sendMessage = async () => {
@@ -184,6 +216,13 @@ export default function AgentPage() {
             note: p.params.note as string | undefined,
           })
           break
+        case 'log_sleep':
+          await createSleepLog({
+            date: (p.params.date as string) || undefined,
+            sleep_time: String(p.params.sleep_time),
+            wake_time: (p.params.wake_time as string) || undefined,
+          })
+          break
         case 'add_worry':
           await createWorry({
             content: String(p.params.content),
@@ -251,11 +290,31 @@ export default function AgentPage() {
 
       {/* 输入区 */}
       <div style={{ flexShrink: 0, paddingTop: 12, borderTop: '1px solid #c8dcd6' }}>
+        {/* 快捷记录模板 */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {QUICK_PROMPTS.map((q) => (
+            <Tag
+              key={q.label}
+              onClick={() => applyTemplate(q.tpl)}
+              style={{ cursor: 'pointer', margin: 0, padding: '2px 10px', borderRadius: 12, background: '#f4f9f7', borderColor: '#b8d8d3', color: '#2f5d59', fontSize: 12 }}
+            >
+              {q.label}
+            </Tag>
+          ))}
+        </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Input.TextArea
+            id="agent-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
+              // Tab：跳到下一个【空缺】（有则拦截默认行为）
+              if (e.key === 'Tab' && !e.shiftKey) {
+                if (selectBlankFrom(e.currentTarget, e.currentTarget.selectionEnd)) {
+                  e.preventDefault()
+                }
+                return
+              }
               // 输入法组词时 Enter 只确认候选词，不触发发送
               if (e.key !== 'Enter' || e.shiftKey) return
               if (e.nativeEvent.isComposing || e.keyCode === 229) return

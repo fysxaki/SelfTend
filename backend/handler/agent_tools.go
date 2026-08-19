@@ -34,6 +34,7 @@ type AgentProposal struct {
 var writeToolNames = map[string]bool{
 	"complete_task": true,
 	"log_energy":    true,
+	"log_sleep":     true,
 	"add_worry":     true,
 	"redeem_prize":  true,
 }
@@ -86,6 +87,15 @@ func agentTools() []DSTool {
 				"note":         map[string]any{"type": "string", "description": "可选备注"},
 			},
 			"required": []string{"energy_level"},
+		}),
+		fn("log_sleep", "记录某天的睡眠。date 是起床那天（不填=今天；用户说昨天/某天时，按【今天】日期推算并填上 YYYY-MM-DD）。", map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"sleep_time": map[string]any{"type": "string", "description": "入睡时间 HH:MM，如 23:30"},
+				"wake_time":  map[string]any{"type": "string", "description": "起床时间 HH:MM，如 08:00，可选（不填用默认 08:52）"},
+				"date":       map[string]any{"type": "string", "description": "起床那天日期 YYYY-MM-DD，可选"},
+			},
+			"required": []string{"sleep_time"},
 		}),
 		fn("add_worry", "把一个焦虑念头放进暂存箱，指定一个未来处理日期。", map[string]any{
 			"type": "object",
@@ -250,6 +260,30 @@ func buildProposal(db *gorm.DB, name, argsJSON string) (AgentProposal, error) {
 			ActionType:   "log_energy",
 			Params:       map[string]any{"energy_level": a.EnergyLevel, "note": a.Note},
 			HumanSummary: fmt.Sprintf("记录今日能量为 %d/5", a.EnergyLevel),
+		}, nil
+
+	case "log_sleep":
+		var a struct {
+			SleepTime string `json:"sleep_time"`
+			WakeTime  string `json:"wake_time"`
+			Date      string `json:"date"`
+		}
+		json.Unmarshal([]byte(argsJSON), &a)
+		if a.SleepTime == "" {
+			return AgentProposal{}, fmt.Errorf("sleep_time 缺失（几点入睡）")
+		}
+		whenLabel := a.Date
+		if whenLabel == "" {
+			whenLabel = "今天"
+		}
+		wakeLabel := a.WakeTime
+		if wakeLabel == "" {
+			wakeLabel = "默认起床(08:52)"
+		}
+		return AgentProposal{
+			ActionType:   "log_sleep",
+			Params:       map[string]any{"date": a.Date, "sleep_time": a.SleepTime, "wake_time": a.WakeTime},
+			HumanSummary: fmt.Sprintf("记录 %s 睡眠：%s 入睡、%s 起床", whenLabel, a.SleepTime, wakeLabel),
 		}, nil
 
 	case "add_worry":

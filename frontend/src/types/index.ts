@@ -66,7 +66,7 @@ export interface Prize {
 
 // AI Agent 写操作待确认方案（后端只提议，前端确认后调现有接口执行）
 export interface AgentProposal {
-  action_type: 'complete_task' | 'log_energy' | 'add_worry' | 'redeem_prize'
+  action_type: 'complete_task' | 'log_energy' | 'log_sleep' | 'add_worry' | 'redeem_prize'
   params: Record<string, unknown>
   human_summary: string
 }

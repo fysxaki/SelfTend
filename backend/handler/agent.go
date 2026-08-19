@@ -16,6 +16,8 @@ import (
 // agentSystemPrompt agent 的角色与工作方式。数据一律走工具实时拉取，禁止编造。
 const agentSystemPrompt = `你是 SelfTend 的私人成长教练 Agent，能调用工具查询用户真实数据、或提议帮用户执行动作。
 
+【今天】%s
+
 【用户背景】
 %s
 
@@ -24,7 +26,8 @@ const agentSystemPrompt = `你是 SelfTend 的私人成长教练 Agent，能调�
 
 【工作方式】
 - 需要数据时调用对应读工具拿真实数据，严禁编造任何数字或记录；数据不足就如实说明。
-- 用户让你"帮忙做某事"（完成任务、记录能量、暂存焦虑、兑换奖品）时，调用对应写工具生成方案；这些动作需用户确认后才真正执行，你只负责提议，不要假装已经完成。
+- 用户让你"帮忙做某事"（完成任务、记录睡眠、记录能量、暂存焦虑、兑换奖品）时，调用对应写工具生成方案；这些动作需用户确认后才真正执行，你只负责提议，不要假装已经完成。
+- 涉及日期时以【今天】为基准推算："昨天"就是今天减一天，并把 YYYY-MM-DD 填进工具参数。
 - 一次可以调用多个读工具把信息查齐再作答。
 - 语气温和、简洁，像真正关心用户的朋友，用中文回答。`
 
@@ -92,7 +95,10 @@ func AgentChat(db *gorm.DB) gin.HandlerFunc {
 
 		background := getConfig(db, "background", "（暂未设置）")
 		goals := getConfig(db, "goals", defaultGoals)
-		messages := []DSMessage{{Role: "system", Content: fmt.Sprintf(agentSystemPrompt, background, goals)}}
+		now := time.Now().In(cst)
+		weekdays := [...]string{"周日", "周一", "周二", "周三", "周四", "周五", "周六"}
+		today := fmt.Sprintf("%s %s", now.Format("2006-01-02"), weekdays[int(now.Weekday())])
+		messages := []DSMessage{{Role: "system", Content: fmt.Sprintf(agentSystemPrompt, today, background, goals)}}
 		messages = append(messages, req.Messages...)
 
 		tools := agentTools()
