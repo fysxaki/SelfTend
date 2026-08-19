@@ -6,6 +6,7 @@ import {
   GiftOutlined,
   HeartOutlined,
   MoonOutlined,
+  RobotOutlined,
   ScheduleOutlined,
   TrophyOutlined,
 } from '@ant-design/icons'
@@ -28,6 +29,7 @@ const SeasonPage   = lazy(() => import('@/pages/Season'))
 const SleepPage    = lazy(() => import('@/pages/Sleep'))
 const AnalyticsPage = lazy(() => import('@/pages/Analytics'))
 const ReviewPage   = lazy(() => import('@/pages/Review'))
+const AgentPage    = lazy(() => import('@/pages/Agent'))
 const WorryPage    = lazy(() => import('@/pages/Worry'))
 const WishPage     = lazy(() => import('@/pages/Wish'))
 const Login        = lazy(() => import('@/pages/Login'))
@@ -44,6 +46,7 @@ const NAV_ITEMS = [
   { key: '/worry',     icon: <CloudOutlined />,     label: '焦虑暂存', path: '/worry' },
   { key: '/analytics', icon: <BarChartOutlined />,  label: '数据分析', path: '/analytics' },
   { key: '/review',    icon: <BookOutlined />,      label: '每日复盘', path: '/review' },
+  { key: '/agent',     icon: <RobotOutlined />,     label: 'AI 助手',  path: '/agent' },
 ]
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -126,6 +129,7 @@ function AppLayout() {
               <Route path="/worry"      element={<WorryPage />} />
               <Route path="/analytics"  element={<AnalyticsPage />} />
               <Route path="/review"     element={<ReviewPage />} />
+              <Route path="/agent"      element={<AgentPage />} />
             </Routes>
           </Suspense>
         </Content>
