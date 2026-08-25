@@ -1,0 +1,13 @@
+{
+  "name": "selftend",
+  "private": true,
+  "version": "0.0.0",
+  "description": "根目录编排脚本：一键起前后端。前端依赖装在 frontend/ 下，这里不放任何依赖。",
+  "scripts": {
+    "dev": "trap 'kill 0' EXIT; (cd backend && go run .) & npm --prefix frontend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "cd backend && go run .",
+    "build": "npm --prefix frontend run build",
+    "lint": "npm --prefix frontend run lint"
+  }
+}
