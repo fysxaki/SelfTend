@@ -79,8 +79,8 @@ function AppLayout() {
           background: '#2c4d4a',
           borderRight: '1px solid #2f5d59',
           position: 'fixed',
-          left: 0, top: 0,
-          height: '100vh',
+          left: 0, top: 0, bottom: 0,
+          overflowY: 'auto',
           zIndex: 100,
         }}
       >
@@ -112,7 +112,7 @@ function AppLayout() {
         </div>
       </Sider>
 
-      <Layout style={{ marginLeft: 200, background: 'transparent', minHeight: '100vh' }}>
+      <Layout style={{ marginLeft: 200, minWidth: 0, background: 'transparent', minHeight: '100vh' }}>
         <Content>
           <Suspense fallback={
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80vh' }}>

@@ -435,9 +435,9 @@ export default function SleepPage() {
     <div style={{ padding: '24px', maxWidth: 900, margin: '0 auto', position: 'relative', zIndex: 1 }}>
       <FloatingDecorations />
       {/* 顶部标题 + 今日状态 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24, position: 'relative', zIndex: 1 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: 24, position: 'relative', zIndex: 1 }}>
+        <div style={{ minWidth: 0, flex: '1 1 240px' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
             <span className="title-highlight" style={{ fontSize: 19, fontWeight: 700, color: '#2f5d59' }}>
               <MoonOutlined style={{ marginRight: 6, color: '#6ba39d' }} />睡眠记录
             </span>
@@ -776,6 +776,7 @@ export default function SleepPage() {
           rowKey="id"
           loading={loading}
           pagination={false}
+          scroll={{ x: 'max-content' }}
           locale={{ emptyText: '还没有睡眠记录，先记录今晚的吧' }}
         />
       </Card>

@@ -208,7 +208,8 @@ export default function ReviewPage() {
             {dayjs().format('YYYY年MM月DD日 dddd')}
           </Text>
         </div>
-        <Space>
+        {/* wrap：窄屏时按钮换行，避免把整页撑出横向滚动 */}
+        <Space wrap style={{ justifyContent: 'flex-end' }}>
           <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
             {([
               { value: 'deepseek-v4-flash', label: '⚡ Flash', active: { bg: '#0ea5e9', color: '#fff' }, inactive: { bg: '#f0f9ff', color: '#0369a1' } },

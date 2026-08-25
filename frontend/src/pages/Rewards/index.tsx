@@ -362,6 +362,7 @@ export default function Rewards() {
           loading={historyLoading}
           pagination={false}
           size="small"
+          scroll={{ x: 'max-content' }}
           locale={{ emptyText: '还没有兑换过任何奖品' }}
           columns={[
             {
