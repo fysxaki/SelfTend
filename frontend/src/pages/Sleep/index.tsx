@@ -1,6 +1,7 @@
 import {
   CheckCircleFilled,
   DeleteOutlined,
+  DownloadOutlined,
   EditOutlined,
   MinusCircleOutlined,
   MobileOutlined,
@@ -31,7 +32,7 @@ import {
 } from 'antd'
 import { isWorkday } from 'chinese-days'
 import dayjs from 'dayjs'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   createSleepLog,
@@ -126,8 +127,9 @@ export default function SleepPage() {
   const [sleepGoal, setSleepGoal] = useState<dayjs.Dayjs>(dayjs(SLEEP_GOAL_MIN, 'HH:mm'))
   // 休息日「放纵一下」：开启后不按睡够时长倒推，改用宽松的习惯窗口（平均入睡 −20min）
   const [indulge, setIndulge] = useState(false)
-  // 手机壁纸视图（19.8:9 竖版，截图后设为锁屏壁纸）
+  // 手机壁纸视图（19.8:9 竖版，可一键导出 PNG 设为锁屏壁纸）
   const [wallpaperOpen, setWallpaperOpen] = useState(false)
+  const wallpaperCanvasRef = useRef<HTMLCanvasElement | null>(null)
   // 睡前倒计时：今晚各锚点的打卡状态（本地存储，跨日自动清空）
   const todayForWindDown = dayjs().format('YYYY-MM-DD')
   const [windDownChecks, setWindDownChecks] = useState<Record<string, boolean>>(() => loadWindDownChecks(todayForWindDown))
@@ -174,6 +176,27 @@ export default function SleepPage() {
     } finally {
       setWindDownSaving(false)
     }
+  }
+
+  // 一键导出壁纸：canvas 已按 1080×2376 真机分辨率绘制，直接 toBlob 下载
+  const handleExportWallpaper = () => {
+    const canvas = wallpaperCanvasRef.current
+    if (!canvas) return
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        message.error('导出失败，请重试')
+        return
+      }
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `selftend-壁纸-${dayjs().format('MMDD')}.png`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      message.success('壁纸已保存')
+    }, 'image/png')
   }
 
   const loadLogs = async () => {
@@ -645,27 +668,40 @@ export default function SleepPage() {
         </Card>
       )}
 
-      {/* 手机壁纸视图：19.8:9 竖版，截图后可设为锁屏壁纸 */}
+      {/* 手机壁纸视图：19.8:9 竖版，一键导出 PNG */}
       <Modal
-        title="锁屏壁纸 · 长按截图保存"
+        title="锁屏壁纸"
         open={wallpaperOpen}
         onCancel={() => setWallpaperOpen(false)}
         footer={null}
         centered
-        width={360}
-        styles={{ body: { display: 'flex', justifyContent: 'center', padding: '8px 0 4px' } }}
+        width={356}
+        styles={{ body: { padding: '4px 0 0' } }}
       >
-        <div>
-          <WallpaperView
+        <Button
+          type="primary"
+          size="large"
+          block
+          icon={<DownloadOutlined />}
+          onClick={handleExportWallpaper}
+          style={{ height: 46, fontSize: 15, fontWeight: 600, marginBottom: 14 }}
+        >
+          保存壁纸（1080×2376）
+        </Button>
+
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <WallpaperCanvas
+            canvasRef={wallpaperCanvasRef}
             anchors={windDownAnchors}
             targetTime={recommendedSleep}
             isWorkday={tomorrowIsWorkday}
           />
-          <p style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', marginTop: 10, lineHeight: 1.6 }}>
-            按 19.8:9 排版（2376×1080）<br />
-            手机上打开本页 → 截图 → 裁掉上下边缘 → 设为锁屏壁纸
-          </p>
         </div>
+
+        <p style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', marginTop: 10, lineHeight: 1.6 }}>
+          已按你的屏幕分辨率输出，保存后直接设为锁屏壁纸即可<br />
+          若浏览器没自动下载，长按上方图片保存
+        </p>
       </Modal>
 
       {/* 锚点配置弹窗 */}
@@ -804,8 +840,11 @@ export default function SleepPage() {
 }
 
 // ─── 手机壁纸视图 ────────────────────────────────────────────
-// 按 19.8:9（2376×1080）比例排版。用 CSS 变量 --u 做缩放单位，
-// 所有尺寸以 --u 为基准，改预览宽度时整体等比缩放，截图不会变形。
+// 直接用 canvas 按真机分辨率 1080×2376（19.8:9）绘制，预览用 CSS 缩到 300px 宽显示。
+// 预览和导出是同一份像素，所见即所得，导出无需再手动截图。
+
+const WP_W = 1080
+const WP_H = 2376
 
 interface WallpaperAnchor {
   key: string
@@ -815,89 +854,121 @@ interface WallpaperAnchor {
   time: string
 }
 
-function WallpaperView({
+function drawWallpaper(
+  canvas: HTMLCanvasElement,
+  anchors: WallpaperAnchor[],
+  targetTime: string | null,
+  workday: boolean,
+) {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  canvas.width = WP_W
+  canvas.height = WP_H
+
+  const FONT = '-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif'
+  const setFont = (size: number, weight: number | string = 400, spacing = 0) => {
+    ctx.font = `${weight} ${size}px ${FONT}`
+    // letterSpacing 需要较新的浏览器支持，不支持时自动忽略，不影响主体排版
+    ;(ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${spacing}px`
+  }
+
+  // 深青绿渐变背景（对应原设计的 170deg linear-gradient）
+  const g = ctx.createLinearGradient(0, 0, WP_W * 0.35, WP_H)
+  g.addColorStop(0, '#0b1f1d')
+  g.addColorStop(0.45, '#123330')
+  g.addColorStop(1, '#1a4642')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, WP_W, WP_H)
+
+  ctx.textBaseline = 'top'
+  const padX = 72
+  let y = 150 + 300 // 上内边距 + 给锁屏系统时钟让出的空白
+
+  ctx.textAlign = 'center'
+  setFont(38, 400, 6)
+  ctx.fillStyle = '#7fb3ac'
+  ctx.fillText('今晚睡觉', WP_W / 2, y)
+  y += 38 + 18
+
+  setFont(150, 200, -2)
+  ctx.fillStyle = '#ffffff'
+  ctx.fillText(targetTime ?? '--:--', WP_W / 2, y)
+  y += 150 + 20
+
+  setFont(30, 400, 0)
+  ctx.fillStyle = '#5d8f89'
+  ctx.fillText(workday ? '明天上班 · 起床 7:35' : '休息日', WP_W / 2, y)
+  y += 30 + 110
+
+  // 锚点列表：图标 / 时间 / 文案 三列
+  const iconCx = padX + 32
+  const timeX = padX + 64 + 34
+  const labelX = timeX + 180 + 34
+
+  for (const step of anchors) {
+    const hasHint = !!step.hint
+    const labelH = 40 * 1.25 + (hasHint ? 6 + 28 * 1.3 : 0)
+    const rowH = Math.max(60, labelH)
+    const midY = y + rowH / 2
+
+    ctx.textBaseline = 'middle'
+    ctx.textAlign = 'center'
+    setFont(52, 400, 0)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillText(step.icon, iconCx, midY)
+
+    ctx.textAlign = 'left'
+    setFont(60, 500, 0)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillText(step.time, timeX, midY)
+
+    ctx.textBaseline = 'top'
+    const labelTop = midY - labelH / 2
+    setFont(40, 400, 0)
+    ctx.fillStyle = '#cfe3df'
+    ctx.fillText(step.label, labelX, labelTop)
+    if (hasHint) {
+      setFont(28, 400, 0)
+      ctx.fillStyle = '#5d8f89'
+      ctx.fillText(step.hint, labelX, labelTop + 40 * 1.25 + 6)
+    }
+
+    y += rowH + 46
+  }
+
+  // 底部标识（留白避开解锁手势区）
+  ctx.textAlign = 'center'
+  setFont(26, 400, 4)
+  ctx.fillStyle = '#3f6b66'
+  ctx.fillText('SelfTend', WP_W / 2, WP_H - 120 - 26)
+}
+
+function WallpaperCanvas({
+  canvasRef,
   anchors,
   targetTime,
   isWorkday: workday,
 }: {
+  canvasRef: React.RefObject<HTMLCanvasElement | null>
   anchors: WallpaperAnchor[]
   targetTime: string | null
   isWorkday: boolean
 }) {
-  // 预览宽度 300px；真机 1080px 宽 → 缩放系数 300/1080
-  const previewWidth = 300
-  const scale = previewWidth / 1080
-  const u = (px: number) => `${Math.round(px * scale * 100) / 100}px`
+  useEffect(() => {
+    if (canvasRef.current) drawWallpaper(canvasRef.current, anchors, targetTime, workday)
+  }, [canvasRef, anchors, targetTime, workday])
 
   return (
-    <div
+    <canvas
+      ref={canvasRef}
       style={{
-        width: previewWidth,
-        height: previewWidth * (2376 / 1080), // 19.8:9
-        background: 'linear-gradient(170deg, #0b1f1d 0%, #123330 45%, #1a4642 100%)',
-        borderRadius: u(56),
-        padding: `${u(150)} ${u(72)} ${u(120)}`,
-        display: 'flex',
-        flexDirection: 'column',
-        color: '#e6f1ee',
-        overflow: 'hidden',
-        position: 'relative',
+        width: 300,
+        height: 300 * (WP_H / WP_W),
+        borderRadius: 16,
         boxShadow: '0 8px 32px rgba(0,0,0,0.28)',
+        display: 'block',
       }}
-    >
-      {/* 顶部留白：给系统时钟让位（锁屏时钟通常在上 1/4） */}
-      <div style={{ flex: '0 0 auto', height: u(300) }} />
-
-      {/* 目标入睡时间 */}
-      <div style={{ textAlign: 'center', marginBottom: u(110) }}>
-        <div style={{ fontSize: u(38), letterSpacing: u(6), color: '#7fb3ac', marginBottom: u(18) }}>
-          今晚睡觉
-        </div>
-        <div style={{ fontSize: u(150), fontWeight: 200, lineHeight: 1, letterSpacing: u(-2), color: '#fff' }}>
-          {targetTime ?? '--:--'}
-        </div>
-        <div style={{ fontSize: u(30), color: '#5d8f89', marginTop: u(20) }}>
-          {workday ? '明天上班 · 起床 7:35' : '休息日'}
-        </div>
-      </div>
-
-      {/* 锚点列表 */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: u(46) }}>
-        {anchors.map((step) => (
-          <div key={step.key} style={{ display: 'flex', alignItems: 'center', gap: u(34) }}>
-            <span style={{ fontSize: u(52), flexShrink: 0, width: u(64), textAlign: 'center' }}>
-              {step.icon}
-            </span>
-            <span
-              style={{
-                fontSize: u(60),
-                fontWeight: 500,
-                color: '#fff',
-                fontVariantNumeric: 'tabular-nums',
-                flexShrink: 0,
-                width: u(180),
-              }}
-            >
-              {step.time}
-            </span>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: u(40), color: '#cfe3df', lineHeight: 1.25 }}>{step.label}</div>
-              {step.hint && (
-                <div style={{ fontSize: u(28), color: '#5d8f89', marginTop: u(6), lineHeight: 1.3 }}>
-                  {step.hint}
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* 底部留白：避开解锁区域 */}
-      <div style={{ flex: 1 }} />
-      <div style={{ textAlign: 'center', fontSize: u(26), color: '#3f6b66', letterSpacing: u(4) }}>
-        SelfTend
-      </div>
-    </div>
+    />
   )
 }
 
