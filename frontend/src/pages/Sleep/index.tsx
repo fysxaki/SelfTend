@@ -54,9 +54,11 @@ const { Text } = Typography
 const STATS_WINDOW_DAYS = 14
 
 // 「今晚建议入睡」分两套，依据明天（起床那天）是否工作日：
-// - 工作日：固定 07:35 起床，建议入睡 = 07:35 − 预计睡眠时长（用 chinese-days 判断，含调休）
+// - 工作日：按配置的固定起床时间倒推（用 chinese-days 判断，含调休）
 // - 休息日/节假日：沿用习惯窗口逻辑（近 14 天平均入睡 − 20min，下限 22:40）
-const WORKDAY_WAKE = '07:35'
+// 工作日起床时间存后端 UserConfig，通勤变化时在卡片上直接改，不用改代码。
+const WORKDAY_WAKE_CONFIG_KEY = 'workday_wake'
+const WORKDAY_WAKE_DEFAULT = '07:35'
 // 预计睡眠时长默认 8h（最少 8h，最多 9h）；晚睡多时可在卡片上调 +0.5h / +1h
 const SLEEP_GOAL_MIN = '08:00'
 
@@ -127,6 +129,8 @@ export default function SleepPage() {
   const [sleepGoal, setSleepGoal] = useState<dayjs.Dayjs>(dayjs(SLEEP_GOAL_MIN, 'HH:mm'))
   // 休息日「放纵一下」：开启后不按睡够时长倒推，改用宽松的习惯窗口（平均入睡 −20min）
   const [indulge, setIndulge] = useState(false)
+  // 工作日起床时间（可配置，存后端）
+  const [workdayWake, setWorkdayWake] = useState(WORKDAY_WAKE_DEFAULT)
   // 手机壁纸视图（19.8:9 竖版，可一键导出 PNG 设为锁屏壁纸）
   const [wallpaperOpen, setWallpaperOpen] = useState(false)
   const wallpaperCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -143,7 +147,22 @@ export default function SleepPage() {
   useEffect(() => {
     getWorries('due').then((list) => setDueWorryCount(list?.length ?? 0)).catch(() => {})
     getUserConfig(WIND_DOWN_CONFIG_KEY).then((resp) => setWindDownSteps(parseWindDownSteps(resp.value))).catch(() => {})
+    getUserConfig(WORKDAY_WAKE_CONFIG_KEY)
+      .then((resp) => { if (/^\d{2}:\d{2}$/.test(resp.value)) setWorkdayWake(resp.value) })
+      .catch(() => {})
   }, [])
+
+  // 改工作日起床时间：先更新界面，再落库；失败时提示但不回滚（下次进页面会读回真实值）
+  const handleWorkdayWakeChange = async (v: dayjs.Dayjs | null) => {
+    if (!v) return
+    const next = v.format('HH:mm')
+    setWorkdayWake(next)
+    try {
+      await setUserConfig(WORKDAY_WAKE_CONFIG_KEY, next)
+    } catch {
+      message.error('起床时间保存失败')
+    }
+  }
 
   const toggleWindDownStep = (key: string) => {
     setWindDownChecks((prev) => {
@@ -330,7 +349,7 @@ export default function SleepPage() {
   const restWake = recentStats.avgWakeTime
   const restUseLoose = indulge || !restWake
   const recommendedSleep = tomorrowIsWorkday
-    ? shiftClockMinutes(WORKDAY_WAKE, -goalMinutes)
+    ? shiftClockMinutes(workdayWake, -goalMinutes)
     : restUseLoose
       ? recentStats.recommended
       : shiftClockMinutes(restWake!, -goalMinutes)
@@ -538,7 +557,7 @@ export default function SleepPage() {
                 <Statistic
                   title={<span style={{ fontSize: 12, color: '#3d6d68' }}>
                     💡 今晚建议入睡{tomorrowIsWorkday
-                      ? '（工作日 · 起床 7:35）'
+                      ? `（工作日 · 起床 ${workdayWake}）`
                       : indulge
                         ? '（休息日 · 放纵中）'
                         : restWake
@@ -569,6 +588,23 @@ export default function SleepPage() {
                   </Tooltip>
                 )}
               </div>
+              {/* 工作日起床时间：可配置，改完即存后端（搬家/换通勤时直接在这里调） */}
+              {tomorrowIsWorkday && (
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: '#3d6d68' }}>起&nbsp;&nbsp;床</span>
+                  <TimePicker
+                    value={dayjs(workdayWake, 'HH:mm')}
+                    onChange={handleWorkdayWakeChange}
+                    format="HH:mm"
+                    minuteStep={5}
+                    allowClear={false}
+                    needConfirm={false}
+                    inputReadOnly
+                    size="small"
+                    style={{ width: 96 }}
+                  />
+                </div>
+              )}
               {/* 预计睡眠时长：仅在「睡够时长」模式下有意义，限制 8h ~ 9h */}
               {(tomorrowIsWorkday || (restWake && !indulge)) && (
                 <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -695,6 +731,7 @@ export default function SleepPage() {
             anchors={windDownAnchors}
             targetTime={recommendedSleep}
             isWorkday={tomorrowIsWorkday}
+            wakeTime={workdayWake}
           />
         </div>
 
@@ -860,6 +897,7 @@ function drawWallpaper(
   anchors: WallpaperAnchor[],
   targetTime: string | null,
   workday: boolean,
+  wakeTime: string,
 ) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
@@ -898,7 +936,7 @@ function drawWallpaper(
 
   setFont(30, 400, 0)
   ctx.fillStyle = '#5d8f89'
-  ctx.fillText(workday ? '明天上班 · 起床 7:35' : '休息日', WP_W / 2, y)
+  ctx.fillText(workday ? `明天上班 · 起床 ${wakeTime}` : '休息日', WP_W / 2, y)
   y += 30 + 110
 
   // 锚点列表：图标 / 时间 / 文案 三列
@@ -949,15 +987,17 @@ function WallpaperCanvas({
   anchors,
   targetTime,
   isWorkday: workday,
+  wakeTime,
 }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>
   anchors: WallpaperAnchor[]
   targetTime: string | null
   isWorkday: boolean
+  wakeTime: string
 }) {
   useEffect(() => {
-    if (canvasRef.current) drawWallpaper(canvasRef.current, anchors, targetTime, workday)
-  }, [canvasRef, anchors, targetTime, workday])
+    if (canvasRef.current) drawWallpaper(canvasRef.current, anchors, targetTime, workday, wakeTime)
+  }, [canvasRef, anchors, targetTime, workday, wakeTime])
 
   return (
     <canvas
