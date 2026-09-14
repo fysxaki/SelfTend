@@ -1,0 +1,7 @@
+# garminconnect 钉在 garth 认证的 0.2.x 线：0.3.x 换了新的 DI token 登录流程，
+# 会去连不存在的 mobile.integration.garmin.com 导致登录失败（见 2026-09 排查）。
+# 0.2.x 用 garth（支持 MFA prompt / 佳明中国 is_cn），我们的代码按这套写。
+garminconnect>=0.2.40,<0.3
+requests>=2.31.0
+tzdata>=2024.1
+python-dotenv>=1.0.0

@@ -115,6 +115,21 @@ systemctl restart selftend
 systemctl status selftend
 ```
 
+### Garmin 睡眠自动同步（可选）
+
+每天定时从 Garmin Connect 拉取睡眠自动写入，免去手填。详见 [garmin/README.md](garmin/README.md)。
+
+一次性启用（服务器上）：
+
+```bash
+cd /opt/selftend/garmin
+cp .env.example .env && vim .env         # 填 Garmin 账号 + SLEEP_IMPORT_SECRET（与 backend/.env 一致）
+python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
+./.venv/bin/python garmin_login.py       # 换 token（开了两步验证会提示输验证码）
+```
+
+配好 `.env` 后，`bash deploy/2_deploy.sh` 会自动装依赖 + 注册定时器（工作日 10:00 / 周末 15:00 / 每天 21:00 兜底）。手动触发：`systemctl start selftend-garmin-sync`。
+
 ---
 
 ## 目录结构

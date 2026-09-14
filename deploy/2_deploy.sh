@@ -52,6 +52,26 @@ else
   exit 1
 fi
 
+# ── Garmin 睡眠自动同步（仅当 garmin/.env 已配置才安装）────────────────
+if [ -f "$APP_DIR/garmin/.env" ]; then
+  echo "⚙️  配置 Garmin 睡眠同步..."
+  cd "$APP_DIR/garmin"
+  # 幂等：venv 不存在才建，依赖每次装保持最新
+  [ -d .venv ] || python3 -m venv .venv
+  ./.venv/bin/pip install -q --upgrade pip
+  ./.venv/bin/pip install -q -r requirements.txt
+  # 注册 timer（service 由 timer 触发，无需 enable service 本身）
+  cp "$APP_DIR/deploy/selftend-garmin-sync.service" /etc/systemd/system/
+  cp "$APP_DIR/deploy/selftend-garmin-sync.timer" /etc/systemd/system/
+  systemctl daemon-reload
+  systemctl enable --now selftend-garmin-sync.timer
+  echo "✅ Garmin 同步定时器已启用（工作日10:00 / 周末15:00 / 每天21:00）"
+  echo "   首次需换 token：cd $APP_DIR/garmin && ./.venv/bin/python garmin_login.py"
+  echo "   手动测试一次：  systemctl start selftend-garmin-sync && journalctl -u selftend-garmin-sync -n 20"
+else
+  echo "⏭️  未检测到 garmin/.env，跳过 Garmin 同步（如需启用见 garmin/README.md）"
+fi
+
 echo ""
 echo "🎉 部署完成！"
 echo "   访问地址：https://zzz.fysxq.lat"

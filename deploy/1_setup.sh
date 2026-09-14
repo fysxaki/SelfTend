@@ -9,7 +9,10 @@ echo "📦 更新系统..."
 apt update && apt upgrade -y
 
 echo "📦 安装基础工具..."
-apt install -y git curl wget gcc nginx certbot python3-certbot-nginx
+apt install -y git curl wget gcc nginx certbot python3-certbot-nginx python3-venv python3-pip
+
+echo "🕐 设置服务器时区为 Asia/Shanghai（systemd 定时器按系统本地时区触发）..."
+timedatectl set-timezone Asia/Shanghai || echo "⚠️  设置时区失败，请手动确认时区为 Asia/Shanghai"
 
 echo "📦 安装 Go 1.22..."
 wget -q https://go.dev/dl/go1.22.5.linux-amd64.tar.gz -O /tmp/go.tar.gz

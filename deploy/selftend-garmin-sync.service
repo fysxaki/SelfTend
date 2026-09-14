@@ -1,0 +1,11 @@
+[Unit]
+Description=SelfTend Garmin Sleep Sync (oneshot)
+After=network-online.target selftend.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/selftend/garmin
+EnvironmentFile=/opt/selftend/garmin/.env
+ExecStart=/opt/selftend/garmin/.venv/bin/python /opt/selftend/garmin/garmin_sync.py
+# 无睡眠数据也返回 0，不算失败

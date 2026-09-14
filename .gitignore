@@ -9,6 +9,12 @@ backend/.env
 frontend/dist
 frontend/node_modules
 
+# Garmin 同步：密钥 / 登录 token / venv 绝不上传
+garmin/.env
+garmin/tokens/
+garmin/.venv/
+garmin/__pycache__/
+
 # 系统文件
 .DS_Store
 *.log

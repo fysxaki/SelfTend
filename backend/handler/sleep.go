@@ -163,21 +163,23 @@ func UpdateSleepLog(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// ImportSleepLogReq iOS 健康（HealthKit）自动同步过来的睡眠记录
+// ImportSleepLogReq 外部自动同步过来的睡眠记录（iOS HealthKit / Garmin 等）
 type ImportSleepLogReq struct {
 	Date      string `json:"date"`       // YYYY-MM-DD（起床那天）
 	SleepTime string `json:"sleep_time"` // HH:MM 入睡时间
 	WakeTime  string `json:"wake_time"`  // HH:MM 起床时间，可选
+	Source    string `json:"source"`     // 来源标签（healthkit / garmin），可选，默认 healthkit
 }
 
-// ImportSleepLog 来自 iOS HealthKit 的自动同步。
+// ImportSleepLog 外部自动同步入口（iOS HealthKit / Garmin 定时任务等）。
 // 行为：
-//   - 当天没有记录 → 创建（source=healthkit），并计算奖惩
-//   - 当天已有 manual 记录 → 跳过（手动优先）
-//   - 当天已有 healthkit 记录 → 更新时间，重算时长/奖惩，并补退之前的奖惩
+//   - 当天没有记录 → 创建，并计算奖惩
+//   - 当天已有 manual 记录 → 跳过（手动永远优先，自动源不覆盖）
+//   - 当天已有自动记录（healthkit/garmin）且时间未变 → 幂等跳过（多次同步不反复退/发积分）
+//   - 当天已有自动记录且时间有变 → 更新时间，重算时长/奖惩，并补退之前的奖惩
 //
 // 鉴权：单独的 X-Import-Secret 头（env 配置 SLEEP_IMPORT_SECRET），与主 access code 分离，
-// 方便给 iOS Shortcut 用长期 token。
+// 方便给 iOS Shortcut / Garmin 同步脚本用长期 token。
 func ImportSleepLog(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req ImportSleepLogReq
@@ -195,6 +197,12 @@ func ImportSleepLog(db *gorm.DB) gin.HandlerFunc {
 			wakeTime = defaultWakeTime
 		}
 
+		// 来源标签：不传默认 healthkit（保持 iOS 调用方向后兼容）
+		source := req.Source
+		if source == "" {
+			source = "healthkit"
+		}
+
 		duration, err := calcSleepDuration(req.Date, req.SleepTime, wakeTime)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("时间格式错误: %v", err)})
@@ -204,17 +212,23 @@ func ImportSleepLog(db *gorm.DB) gin.HandlerFunc {
 		var existing model.SleepLog
 		findErr := db.Where("date = ?", req.Date).First(&existing).Error
 
-		// 已存在手动记录 → 不动，告诉调用方跳过
-		if findErr == nil && existing.Source != "" && existing.Source != "healthkit" {
+		// 已存在手动记录 → 不动，告诉调用方跳过（只有 manual 受保护，自动源之间可互相更新）
+		if findErr == nil && existing.Source == "manual" {
 			c.JSON(http.StatusOK, gin.H{
 				"skipped": true,
-				"reason":  "manual record exists, healthkit will not overwrite",
+				"reason":  "manual record exists, auto-sync will not overwrite",
 				"log":     existing,
 			})
 			return
 		}
 
-		// 已有 healthkit 记录 → 退还旧奖惩，重新计算，更新时间
+		// 幂等：已有自动记录且入睡/起床时间都没变 → 直接跳过，避免一天多次同步反复退还/重发积分
+		if findErr == nil && existing.SleepTime == req.SleepTime && existing.WakeTime == wakeTime {
+			c.JSON(http.StatusOK, gin.H{"unchanged": true, "log": existing})
+			return
+		}
+
+		// 已有自动记录且时间有变 → 退还旧奖惩，重新计算，更新时间
 		if findErr == nil {
 			if existing.Penalized && existing.PenaltyExp > 0 {
 				refundStats(db, existing.PenaltyExp)
@@ -231,7 +245,7 @@ func ImportSleepLog(db *gorm.DB) gin.HandlerFunc {
 				existing.PenaltyExp = applyRetroactivePenalty(db, req.Date)
 			}
 			existing.BonusExp = applyDurationBonus(db, duration, req.Date)
-			existing.Source = "healthkit"
+			existing.Source = source
 			db.Save(&existing)
 			c.JSON(http.StatusOK, gin.H{"updated": true, "log": existing})
 			return
@@ -243,7 +257,7 @@ func ImportSleepLog(db *gorm.DB) gin.HandlerFunc {
 			SleepTime: req.SleepTime,
 			WakeTime:  wakeTime,
 			Duration:  duration,
-			Source:    "healthkit",
+			Source:    source,
 		}
 		log.Penalized = isSleepPenalized(req.SleepTime)
 		if log.Penalized {
