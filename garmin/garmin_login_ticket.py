@@ -78,7 +78,8 @@ def main() -> int:
 
     # 验证 token 真能调接口
     try:
-        prof = client.connectapi("/userprofile-service/userprofile/profile")
+        # 注意：中国区没有 /userprofile/profile（404），socialProfile 两区通用
+        prof = client.connectapi("/userprofile-service/socialProfile")
         name = (prof or {}).get("displayName") or (prof or {}).get("fullName") or "(未知)"
         print(f"✅ token 可用，账号：{name}")
     except Exception as e:
