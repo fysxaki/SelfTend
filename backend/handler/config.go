@@ -47,3 +47,14 @@ func SetUserConfig(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"key": key, "value": cfg.Value})
 	}
 }
+
+// upsertConfig 内部写配置（不经 HTTP），供自动同步等内部逻辑复用
+func upsertConfig(db *gorm.DB, key, value string) {
+	var cfg model.UserConfig
+	if err := db.Where("key = ?", key).First(&cfg).Error; err == nil {
+		cfg.Value = value
+		db.Save(&cfg)
+		return
+	}
+	db.Create(&model.UserConfig{Key: key, Value: value})
+}

@@ -142,7 +142,18 @@ def sync_sleep(garmin, candidates, url, secret, dry_run) -> bool:
         "wake_time": end.strftime("%H:%M"),
         "source": "garmin",
     }
+    # Garmin 对「下一次睡眠」的建议时长（nextSleepNeed.actual，分钟）。
+    # baseline 是个人基线，actual 是结合训练负荷/睡眠债后的实际建议，取 actual。
+    # 传给后端存进 UserConfig，前端「今晚建议入睡」据此自动倒推，免手填。
+    need = dto.get("nextSleepNeed") or {}
+    need_minutes, need_date = need.get("actual"), need.get("calendarDate")
+    if need_minutes and need_date:
+        payload["sleep_need_minutes"] = int(need_minutes)
+        payload["sleep_need_date"] = need_date
+
     print(f"🌙 Garmin 睡眠：{payload['date']} {payload['sleep_time']} → {payload['wake_time']}")
+    if need_minutes and need_date:
+        print(f"💤 Garmin 建议睡眠时长：{need_date} 需 {need_minutes} 分钟（{need_minutes / 60:.1f}h）")
     if dry_run:
         print("🧪 dry-run，不写入。payload=", payload)
         return True

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -169,7 +170,14 @@ type ImportSleepLogReq struct {
 	SleepTime string `json:"sleep_time"` // HH:MM 入睡时间
 	WakeTime  string `json:"wake_time"`  // HH:MM 起床时间，可选
 	Source    string `json:"source"`     // 来源标签（healthkit / garmin），可选，默认 healthkit
+	// Garmin 的下次睡眠需求（nextSleepNeed）：建议时长分钟数 + 其对应日期（起床那天）。
+	// 可选；传了就存进 UserConfig，供前端「今晚建议入睡」自动倒推，免去手填。
+	SleepNeedMinutes int    `json:"sleep_need_minutes"`
+	SleepNeedDate    string `json:"sleep_need_date"`
 }
+
+// SleepNeedConfigKey 存 Garmin 建议睡眠时长的 UserConfig key（前端同名读取）
+const SleepNeedConfigKey = "garmin_sleep_need"
 
 // ImportSleepLog 外部自动同步入口（iOS HealthKit / Garmin 定时任务等）。
 // 行为：
@@ -201,6 +209,16 @@ func ImportSleepLog(db *gorm.DB) gin.HandlerFunc {
 		source := req.Source
 		if source == "" {
 			source = "healthkit"
+		}
+
+		// 顺带保存 Garmin 建议睡眠时长。独立于睡眠记录本身：
+		// 即使下面因「手动优先」跳过写记录，这个建议值也应该更新。
+		if req.SleepNeedMinutes > 0 && req.SleepNeedDate != "" {
+			payload, _ := json.Marshal(map[string]any{
+				"date":    req.SleepNeedDate,
+				"minutes": req.SleepNeedMinutes,
+			})
+			upsertConfig(db, SleepNeedConfigKey, string(payload))
 		}
 
 		duration, err := calcSleepDuration(req.Date, req.SleepTime, wakeTime)

@@ -61,6 +61,11 @@ const WORKDAY_WAKE_CONFIG_KEY = 'workday_wake'
 const WORKDAY_WAKE_DEFAULT = '07:35'
 // 预计睡眠时长默认 8h（最少 8h，最多 9h）；晚睡多时可在卡片上调 +0.5h / +1h
 const SLEEP_GOAL_MIN = '08:00'
+// Garmin 的「下次睡眠建议时长」由 garmin_sync.py 写入后端 UserConfig（key 与后端 SleepNeedConfigKey 一致）。
+// 有值就自动填进「预计睡眠时长」，免去每天手填；仍可在卡片上手动覆盖。
+const GARMIN_SLEEP_NEED_CONFIG_KEY = 'garmin_sleep_need'
+const SLEEP_GOAL_MIN_MINUTES = 8 * 60
+const SLEEP_GOAL_MAX_MINUTES = 9 * 60
 
 // 睡前倒计时：不排满整晚分钟级日程（容易被打乱后直接放弃），
 // 由用户自己配置几个关键锚点，从目标入睡时间往前倒推。
@@ -131,6 +136,8 @@ export default function SleepPage() {
   const [indulge, setIndulge] = useState(false)
   // 工作日起床时间（可配置，存后端）
   const [workdayWake, setWorkdayWake] = useState(WORKDAY_WAKE_DEFAULT)
+  // Garmin 建议的下次睡眠时长（分钟），仅用于展示原始建议；超出 8~9h 会被 clamp 后填入 sleepGoal
+  const [garminNeedMinutes, setGarminNeedMinutes] = useState<number | null>(null)
   // 手机壁纸视图（19.8:9 竖版，可一键导出 PNG 设为锁屏壁纸）
   const [wallpaperOpen, setWallpaperOpen] = useState(false)
   const wallpaperCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -149,6 +156,17 @@ export default function SleepPage() {
     getUserConfig(WIND_DOWN_CONFIG_KEY).then((resp) => setWindDownSteps(parseWindDownSteps(resp.value))).catch(() => {})
     getUserConfig(WORKDAY_WAKE_CONFIG_KEY)
       .then((resp) => { if (/^\d{2}:\d{2}$/.test(resp.value)) setWorkdayWake(resp.value) })
+      .catch(() => {})
+    // Garmin 建议睡眠时长：只认「明天起床那天」的建议，过期的不用（避免拿昨天的数据倒推今晚）
+    getUserConfig(GARMIN_SLEEP_NEED_CONFIG_KEY)
+      .then((resp) => {
+        if (!resp.value) return
+        const { date, minutes } = JSON.parse(resp.value) as { date?: string; minutes?: number }
+        if (!minutes || date !== dayjs().add(1, 'day').format('YYYY-MM-DD')) return
+        setGarminNeedMinutes(minutes)
+        const clamped = Math.min(SLEEP_GOAL_MAX_MINUTES, Math.max(SLEEP_GOAL_MIN_MINUTES, minutes))
+        setSleepGoal(dayjs().startOf('day').add(clamped, 'minute'))
+      })
       .catch(() => {})
   }, [])
 
@@ -626,6 +644,12 @@ export default function SleepPage() {
                     })}
                     hideDisabledOptions
                   />
+                  {garminNeedMinutes !== null && (
+                    <span style={{ fontSize: 11, color: '#6ba39d' }}>
+                      ⌚️ Garmin 建议 {(garminNeedMinutes / 60).toFixed(1)}h
+                      {(garminNeedMinutes < SLEEP_GOAL_MIN_MINUTES || garminNeedMinutes > SLEEP_GOAL_MAX_MINUTES) && '（已按 8~9h 取整）'}
+                    </span>
+                  )}
                 </div>
               )}
             </Card>
