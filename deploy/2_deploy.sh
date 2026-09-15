@@ -56,8 +56,17 @@ fi
 if [ -f "$APP_DIR/garmin/.env" ]; then
   echo "⚙️  配置 Garmin 睡眠同步..."
   cd "$APP_DIR/garmin"
-  # 幂等：venv 不存在才建，依赖每次装保持最新
-  [ -d .venv ] || python3 -m venv .venv
+  # 老服务器可能没装 venv 支持（早期 1_setup.sh 未包含），缺了就自动补
+  if ! python3 -c "import ensurepip" >/dev/null 2>&1; then
+    echo "   python3-venv 缺失，自动安装..."
+    PYVER=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+    apt update -qq && apt install -y "python${PYVER}-venv" python3-pip || apt install -y python3-venv python3-pip
+  fi
+  # 幂等：venv 不存在或损坏（缺 pip）就重建
+  if [ ! -x .venv/bin/pip ]; then
+    rm -rf .venv
+    python3 -m venv .venv
+  fi
   ./.venv/bin/pip install -q --upgrade pip
   ./.venv/bin/pip install -q -r requirements.txt
   # 注册 timer（service 由 timer 触发，无需 enable service 本身）
