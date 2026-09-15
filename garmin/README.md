@@ -15,6 +15,31 @@ systemd timer（工作日10:00 / 周末15:00 / 每天21:00 兜底）
 
 Garmin 登录没有可用的 Go 库，所以这层用 Python（[python-garminconnect](https://github.com/cyberjunky/python-garminconnect)）。
 
+## ⚠️ 佳明中国（garmin.cn）：必须用 ticket 方式换 token
+
+garmin.cn 的登录页带 **reCAPTCHA**（`/sso/js/reCaptchaUtil.js`），纯脚本提交账号密码会被 401 拒——
+`garmin_login.py` 在中国区**不可用**（国际版 garmin.com 正常）。
+
+但「ticket → OAuth token」走 `connectapi.garmin.cn`，是纯 API、**没有验证码**。
+所以由你在浏览器人工登录（人过验证码）拿 ticket，脚本只做后半段交换：
+
+**① 先把脚本跑起来等着**（它会停在粘贴提示，ticket 有效期很短，要抢时间）：
+
+```bash
+./.venv/bin/python garmin_login_ticket.py
+```
+
+**② 浏览器打开这个登录页**并用手机号+密码登录：
+
+```
+https://sso.garmin.cn/sso/signin?id=gauth-widget&embedWidget=true&gauthHost=https%3A%2F%2Fsso.garmin.cn%2Fsso%2Fembed&service=https%3A%2F%2Fsso.garmin.cn%2Fsso%2Fembed&source=https%3A%2F%2Fsso.garmin.cn%2Fsso%2Fembed&redirectAfterAccountLoginUrl=https%3A%2F%2Fsso.garmin.cn%2Fsso%2Fembed&redirectAfterAccountCreationUrl=https%3A%2F%2Fsso.garmin.cn%2Fsso%2Fembed
+```
+
+**③ 登录成功后页面会显示** `{serviceUrl: ..., serviceTicket: 'ST-xxxxx-cas'}`，
+立刻复制 `ST-` 那串，粘回①的终端回车。看到 `✅ token 可用，账号：xxx` 即成功。
+
+ticket 过期（几十秒）就重新登录再拿一个。换到 token 后，日常同步只用 token，**不用再登录**。
+
 ## 首次启用（服务器上，一次性）
 
 ```bash
