@@ -85,11 +85,14 @@ type SleepLog struct {
 
 // EnergyLog 每日能量记录
 type EnergyLog struct {
-	ID          uint      `json:"id" gorm:"primaryKey"`
-	Date        string    `json:"date"`         // YYYY-MM-DD (CST)
-	EnergyLevel int       `json:"energy_level"` // 1-5
-	Note        string    `json:"note"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID          uint   `json:"id" gorm:"primaryKey"`
+	Date        string `json:"date"`         // YYYY-MM-DD (CST)
+	EnergyLevel int    `json:"energy_level"` // 1-5
+	Note        string `json:"note"`
+	// Source 来源：空 / "manual"=手动录入；"garmin"=身体电量自动同步。
+	// 注意：该字段晚于本表加入，历史记录为空值，判断手动记录时空值也按手动处理
+	Source    string    `json:"source" gorm:"default:'manual'"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // ReviewLog 每日复盘总结

@@ -43,6 +43,18 @@ except ImportError:
 
 CST = ZoneInfo("Asia/Shanghai")
 
+# 身体电量(0-100) → SelfTend 能量等级(1-5) 的分档。
+# 取当天「最高」身体电量而非当前值：电量醒来达峰、白天单调下降，
+# 用最高值代表「今日能量储备」，且不随同步时刻变化（10点跑和21点跑结果一致，幂等）。
+ENERGY_BANDS = [(20, 1), (40, 2), (60, 3), (80, 4), (100, 5)]
+
+
+def body_battery_to_energy(level: int) -> int:
+    for upper, energy in ENERGY_BANDS:
+        if level <= upper:
+            return energy
+    return 5
+
 
 def env(key: str, default: str = "") -> str:
     return os.environ.get(key, default).strip()
@@ -80,37 +92,47 @@ def to_cst(ms_gmt: int) -> datetime:
     return datetime.fromtimestamp(ms_gmt / 1000, tz=timezone.utc).astimezone(CST)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Garmin 睡眠同步到 SelfTend")
-    parser.add_argument("--date", help="指定日期 YYYY-MM-DD（默认今天，取不到回退昨天）")
-    parser.add_argument("--dry-run", action="store_true", help="只拉取打印，不写入")
-    args = parser.parse_args()
+def fetch_body_battery_peak(garmin: Garmin, cdate: str):
+    """返回当天身体电量最高值(0-100)，无数据返回 None。"""
+    try:
+        data = garmin.get_body_battery(cdate)
+    except Exception as e:
+        print(f"⚠️  拉取 {cdate} 身体电量失败：{e}", file=sys.stderr)
+        return None
+    if not data:
+        return None
+    arr = (data[0] or {}).get("bodyBatteryValuesArray") or []
+    levels = [p[1] for p in arr if isinstance(p, (list, tuple)) and len(p) >= 2 and isinstance(p[1], int)]
+    return max(levels) if levels else None
 
-    import_url = env("SELFTEND_IMPORT_URL", "http://localhost:8080/api/sleep-logs/import")
-    secret = env("SLEEP_IMPORT_SECRET")
-    tokenstore = env("GARMIN_TOKENSTORE", os.path.expanduser("~/.garminconnect"))
-    if not secret and not args.dry_run:
-        print("❌ 未配置 SLEEP_IMPORT_SECRET（需与后端 .env 一致）", file=sys.stderr)
-        return 2
 
-    garmin = load_client(tokenstore)
+def post_import(url: str, payload: dict, secret: str) -> bool:
+    try:
+        resp = requests.post(
+            url,
+            json=payload,
+            headers={"X-Import-Secret": secret, "Content-Type": "application/json"},
+            timeout=15,
+        )
+    except requests.RequestException as e:
+        print(f"❌ POST 到 SelfTend 失败（{url}）：{e}", file=sys.stderr)
+        return False
+    if resp.status_code != 200:
+        print(f"❌ SelfTend 返回 {resp.status_code}: {resp.text}", file=sys.stderr)
+        return False
+    print(f"✅ 已同步：{resp.json()}")
+    return True
 
-    # 目标日期：指定则只查该天；否则先今天、取不到回退昨天（应对 Garmin 尚未同步 / 日期归属差异）
-    if args.date:
-        candidates = [args.date]
-    else:
-        today = datetime.now(CST).date()
-        candidates = [today.isoformat(), (today - timedelta(days=1)).isoformat()]
 
+def sync_sleep(garmin, candidates, url, secret, dry_run) -> bool:
     dto = None
     for cdate in candidates:
         dto = fetch_sleep_dto(garmin, cdate)
         if dto:
             break
-
     if not dto:
         print(f"ℹ️  {candidates} 无睡眠数据（没戴表 / 还没同步到 Garmin 云），跳过。")
-        return 0
+        return True
 
     start = to_cst(dto["sleepStartTimestampGMT"])
     end = to_cst(dto["sleepEndTimestampGMT"])
@@ -121,28 +143,69 @@ def main() -> int:
         "source": "garmin",
     }
     print(f"🌙 Garmin 睡眠：{payload['date']} {payload['sleep_time']} → {payload['wake_time']}")
-
-    if args.dry_run:
+    if dry_run:
         print("🧪 dry-run，不写入。payload=", payload)
-        return 0
+        return True
+    return post_import(url, payload, secret)
 
-    try:
-        resp = requests.post(
-            import_url,
-            json=payload,
-            headers={"X-Import-Secret": secret, "Content-Type": "application/json"},
-            timeout=15,
-        )
-    except requests.RequestException as e:
-        print(f"❌ POST 到 SelfTend 失败：{e}", file=sys.stderr)
-        return 1
 
-    if resp.status_code != 200:
-        print(f"❌ SelfTend 返回 {resp.status_code}: {resp.text}", file=sys.stderr)
-        return 1
+def sync_energy(garmin, cdate, url, secret, dry_run) -> bool:
+    peak = fetch_body_battery_peak(garmin, cdate)
+    if peak is None:
+        print(f"ℹ️  {cdate} 无身体电量数据，跳过能量同步。")
+        return True
 
-    print(f"✅ 已同步：{resp.json()}")
-    return 0
+    level = body_battery_to_energy(peak)
+    payload = {
+        "date": cdate,
+        "energy_level": level,
+        "note": f"Garmin 身体电量峰值 {peak}",
+        "source": "garmin",
+    }
+    print(f"🔋 Garmin 身体电量：{cdate} 峰值 {peak} → 能量 {level}/5")
+    if dry_run:
+        print("🧪 dry-run，不写入。payload=", payload)
+        return True
+    return post_import(url, payload, secret)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Garmin 睡眠 + 身体电量同步到 SelfTend")
+    parser.add_argument("--date", help="指定日期 YYYY-MM-DD（默认今天，睡眠取不到回退昨天）")
+    parser.add_argument("--dry-run", action="store_true", help="只拉取打印，不写入")
+    parser.add_argument(
+        "--only", choices=["sleep", "energy"], help="只同步其中一项（默认两项都同步）"
+    )
+    args = parser.parse_args()
+
+    sleep_url = env("SELFTEND_IMPORT_URL", "http://localhost:8080/api/sleep-logs/import")
+    # 能量接口沿用同一 base，未单独配置时自动推导，老 .env 无需改动
+    energy_url = env("SELFTEND_ENERGY_IMPORT_URL") or sleep_url.replace(
+        "/sleep-logs/import", "/energy-logs/import"
+    )
+    secret = env("SLEEP_IMPORT_SECRET")
+    tokenstore = env("GARMIN_TOKENSTORE", os.path.expanduser("~/.garminconnect"))
+    if not secret and not args.dry_run:
+        print("❌ 未配置 SLEEP_IMPORT_SECRET（需与后端 .env 一致）", file=sys.stderr)
+        return 2
+
+    garmin = load_client(tokenstore)
+
+    today = datetime.now(CST).date()
+    # 睡眠：指定则只查该天；否则先今天、取不到回退昨天（应对尚未同步 / 日期归属差异）
+    if args.date:
+        sleep_candidates = [args.date]
+        energy_date = args.date
+    else:
+        sleep_candidates = [today.isoformat(), (today - timedelta(days=1)).isoformat()]
+        energy_date = today.isoformat()
+
+    ok = True
+    if args.only != "energy":
+        ok &= sync_sleep(garmin, sleep_candidates, sleep_url, secret, args.dry_run)
+    if args.only != "sleep":
+        ok &= sync_energy(garmin, energy_date, energy_url, secret, args.dry_run)
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
