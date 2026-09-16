@@ -43,17 +43,26 @@ except ImportError:
 
 CST = ZoneInfo("Asia/Shanghai")
 
-# Garmin 睡眠分数(0-100) → SelfTend 能量等级(1-5) 的分档。
-# 以 Garmin 官方分级为基准（POOR<60 / FAIR 60-79 / GOOD 80-89 / EXCELLENT 90+），
-# 把跨度最大的 FAIR 段拆成两档，凑满 1-5：
-#   <60 POOR→1 / 60-69 FAIR低→2 / 70-79 FAIR高→3 / 80-89 GOOD→4 / 90+ EXCELLENT→5
-# 用绝对分级而非「按自己近期分布五等分」：后者会让睡得差的日子也拿高分，
-# 失去改进指示作用；且分布一变分档就得重调，趋势图前后不可比。
-SLEEP_SCORE_BANDS = [(59, 1), (69, 2), (79, 3), (89, 4), (100, 5)]
+# Garmin 睡眠分数 → SelfTend 能量等级。
+# 直接用 Garmin 返回的 qualifierKey 四档分级，不自己定阈值：
+# 这样完全贴合 App 里显示的分级，Garmin 以后调整阈值也会自动跟随。
+# 能量字段是 1-5，四档取 2-5：让 EXCELLENT 对齐「满血 5」、FAIR 对齐「一般 3」，
+# 档位连续不跳号（POOR 落 2 而非 1，是为了不在趋势图上留一个永不出现的空档）。
+QUALIFIER_TO_ENERGY = {
+    "POOR": 2,
+    "FAIR": 3,
+    "GOOD": 4,
+    "EXCELLENT": 5,
+}
+
+# 兜底：极少数情况下 qualifierKey 缺失，按 Garmin 官方公开阈值判断
+SCORE_FALLBACK_BANDS = [(59, 2), (79, 3), (89, 4), (100, 5)]
 
 
-def sleep_score_to_energy(score: int) -> int:
-    for upper, energy in SLEEP_SCORE_BANDS:
+def sleep_score_to_energy(score: int, qualifier: str | None = None) -> int:
+    if qualifier and qualifier.upper() in QUALIFIER_TO_ENERGY:
+        return QUALIFIER_TO_ENERGY[qualifier.upper()]
+    for upper, energy in SCORE_FALLBACK_BANDS:
         if score <= upper:
             return energy
     return 5
@@ -166,7 +175,7 @@ def sync_energy(garmin, cdate, url, secret, dry_run) -> bool:
         print(f"ℹ️  {cdate} 无睡眠分数，跳过能量同步。")
         return True
 
-    level = sleep_score_to_energy(score)
+    level = sleep_score_to_energy(score, qualifier)
     payload = {
         "date": cdate,
         "energy_level": level,
