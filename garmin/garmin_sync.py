@@ -43,15 +43,18 @@ except ImportError:
 
 CST = ZoneInfo("Asia/Shanghai")
 
-# 身体电量(0-100) → SelfTend 能量等级(1-5) 的分档。
-# 取当天「最高」身体电量而非当前值：电量醒来达峰、白天单调下降，
-# 用最高值代表「今日能量储备」，且不随同步时刻变化（10点跑和21点跑结果一致，幂等）。
-ENERGY_BANDS = [(20, 1), (40, 2), (60, 3), (80, 4), (100, 5)]
+# Garmin 睡眠分数(0-100) → SelfTend 能量等级(1-5) 的分档。
+# 以 Garmin 官方分级为基准（POOR<60 / FAIR 60-79 / GOOD 80-89 / EXCELLENT 90+），
+# 把跨度最大的 FAIR 段拆成两档，凑满 1-5：
+#   <60 POOR→1 / 60-69 FAIR低→2 / 70-79 FAIR高→3 / 80-89 GOOD→4 / 90+ EXCELLENT→5
+# 用绝对分级而非「按自己近期分布五等分」：后者会让睡得差的日子也拿高分，
+# 失去改进指示作用；且分布一变分档就得重调，趋势图前后不可比。
+SLEEP_SCORE_BANDS = [(59, 1), (69, 2), (79, 3), (89, 4), (100, 5)]
 
 
-def body_battery_to_energy(level: int) -> int:
-    for upper, energy in ENERGY_BANDS:
-        if level <= upper:
+def sleep_score_to_energy(score: int) -> int:
+    for upper, energy in SLEEP_SCORE_BANDS:
+        if score <= upper:
             return energy
     return 5
 
@@ -92,18 +95,15 @@ def to_cst(ms_gmt: int) -> datetime:
     return datetime.fromtimestamp(ms_gmt / 1000, tz=timezone.utc).astimezone(CST)
 
 
-def fetch_body_battery_peak(garmin: Garmin, cdate: str):
-    """返回当天身体电量最高值(0-100)，无数据返回 None。"""
+def fetch_sleep_score(garmin: Garmin, cdate: str):
+    """返回当天睡眠分数 (value, qualifierKey)，无数据返回 (None, None)。"""
     try:
-        data = garmin.get_body_battery(cdate)
+        dto = (garmin.get_sleep_data(cdate) or {}).get("dailySleepDTO") or {}
     except Exception as e:
-        print(f"⚠️  拉取 {cdate} 身体电量失败：{e}", file=sys.stderr)
-        return None
-    if not data:
-        return None
-    arr = (data[0] or {}).get("bodyBatteryValuesArray") or []
-    levels = [p[1] for p in arr if isinstance(p, (list, tuple)) and len(p) >= 2 and isinstance(p[1], int)]
-    return max(levels) if levels else None
+        print(f"⚠️  拉取 {cdate} 睡眠分数失败：{e}", file=sys.stderr)
+        return None, None
+    overall = ((dto.get("sleepScores") or {}).get("overall") or {})
+    return overall.get("value"), overall.get("qualifierKey")
 
 
 def post_import(url: str, payload: dict, secret: str) -> bool:
@@ -161,19 +161,20 @@ def sync_sleep(garmin, candidates, url, secret, dry_run) -> bool:
 
 
 def sync_energy(garmin, cdate, url, secret, dry_run) -> bool:
-    peak = fetch_body_battery_peak(garmin, cdate)
-    if peak is None:
-        print(f"ℹ️  {cdate} 无身体电量数据，跳过能量同步。")
+    score, qualifier = fetch_sleep_score(garmin, cdate)
+    if score is None:
+        print(f"ℹ️  {cdate} 无睡眠分数，跳过能量同步。")
         return True
 
-    level = body_battery_to_energy(peak)
+    level = sleep_score_to_energy(score)
     payload = {
         "date": cdate,
         "energy_level": level,
-        "note": f"Garmin 身体电量峰值 {peak}",
+        # 备注留原始分数与 Garmin 分级，方便回看映射准不准
+        "note": f"Garmin 睡眠分数 {score}" + (f"（{qualifier}）" if qualifier else ""),
         "source": "garmin",
     }
-    print(f"🔋 Garmin 身体电量：{cdate} 峰值 {peak} → 能量 {level}/5")
+    print(f"😴 Garmin 睡眠分数：{cdate} {score} 分{f'（{qualifier}）' if qualifier else ''} → 能量 {level}/5")
     if dry_run:
         print("🧪 dry-run，不写入。payload=", payload)
         return True
@@ -181,7 +182,7 @@ def sync_energy(garmin, cdate, url, secret, dry_run) -> bool:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Garmin 睡眠 + 身体电量同步到 SelfTend")
+    parser = argparse.ArgumentParser(description="Garmin 睡眠 + 睡眠分数同步到 SelfTend")
     parser.add_argument("--date", help="指定日期 YYYY-MM-DD（默认今天，睡眠取不到回退昨天）")
     parser.add_argument("--dry-run", action="store_true", help="只拉取打印，不写入")
     parser.add_argument(
