@@ -45,6 +45,9 @@ func main() {
 	// 一次性迁移：把老的 timing='both' 任务自动转成 variants 配置
 	migrateTimingBothToVariants(db)
 
+	// 一次性迁移：能量刻度从 1-5 改为对齐 Garmin 的 1-4，把越界的旧 5 分降到 4
+	migrateEnergyLevelTo4Tier(db)
+
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: []string{"*"},
@@ -186,4 +189,22 @@ func migrateTimingBothToVariants(db *gorm.DB) {
 	} else {
 		log.Println("[migrate] dropped task.timing column")
 	}
+}
+
+// migrateEnergyLevelTo4Tier 一次性迁移：能量刻度 1-5 → 1-4（对齐 Garmin 原生四档）。
+//
+// 旧刻度 5=满血 在新刻度里越界（新上限是 4=EXCELLENT 优秀），不迁移的话
+// 这些历史记录在前端编辑时会被 1-4 校验拒绝。这里只把 5 降到 4，
+// 其余 1-4 的旧值保持原样不动——那些是用户当初的主观自评，
+// 语义虽与新分级有偏移，但都是合法值，不擅自改写。
+//
+// 幂等：迁移后库里不再有 5，重复启动不会重复处理。
+func migrateEnergyLevelTo4Tier(db *gorm.DB) {
+	var count int64
+	db.Model(&model.EnergyLog{}).Where("energy_level > 4").Count(&count)
+	if count == 0 {
+		return
+	}
+	db.Model(&model.EnergyLog{}).Where("energy_level > 4").Update("energy_level", 4)
+	log.Printf("已迁移 %d 条能量记录：旧 5 分（满血）→ 4 分（优秀），对齐 Garmin 四档", count)
 }
