@@ -45,7 +45,7 @@ func CompleteTask(db *gorm.DB) gin.HandlerFunc {
 
 		taskLog := model.TaskLog{
 			TaskID:      req.TaskID,
-			CompletedAt: time.Now(),
+			CompletedAt: time.Now().UTC(), // 统一存 UTC：SQLite 是字符串比较，混入 +08:00 会让跨日判断出错
 			Note:        req.Note,
 			ExpAwarded:  exp,
 		}
@@ -85,13 +85,13 @@ func UndoTask(db *gorm.DB) gin.HandlerFunc {
 		switch task.Type {
 		case "weekly":
 			weekStart := weekStartUTC()
-			queryErr = db.Where("task_id = ? AND completed_at >= ?", taskID, weekStart).
-				Order("completed_at desc").First(&log).Error
+			queryErr = db.Where("task_id = ? AND datetime(completed_at) >= datetime(?)", taskID, weekStart).
+				Order("datetime(completed_at) desc").First(&log).Error
 		default:
 			todayStart, todayEnd := todayRangeUTC()
-			queryErr = db.Where("task_id = ? AND completed_at >= ? AND completed_at < ?",
+			queryErr = db.Where("task_id = ? AND datetime(completed_at) >= datetime(?) AND datetime(completed_at) < datetime(?)",
 				taskID, todayStart, todayEnd).
-				Order("completed_at desc").First(&log).Error
+				Order("datetime(completed_at) desc").First(&log).Error
 		}
 
 		if queryErr != nil {
@@ -128,7 +128,7 @@ func GetTaskLogs(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		taskID := c.Query("task_id")
 		var logs []model.TaskLog
-		db.Where("task_id = ?", taskID).Order("completed_at desc").Find(&logs)
+		db.Where("task_id = ?", taskID).Order("datetime(completed_at) desc").Find(&logs)
 		c.JSON(http.StatusOK, logs)
 	}
 }

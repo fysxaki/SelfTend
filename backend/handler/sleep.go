@@ -368,7 +368,7 @@ func applyRetroactivePenalty(db *gorm.DB, date string) float64 {
 	var r sumResult
 	db.Model(&model.TaskLog{}).
 		Select("COALESCE(SUM(exp_awarded), 0) as total").
-		Where("completed_at >= ? AND completed_at < ?", dayStart.UTC(), dayEnd.UTC()).
+		Where("datetime(completed_at) >= datetime(?) AND datetime(completed_at) < datetime(?)", dayStart.UTC(), dayEnd.UTC()).
 		Scan(&r)
 	if r.Total <= 0 {
 		return 0
@@ -414,7 +414,7 @@ func BackfillPenaltyExp(db *gorm.DB) gin.HandlerFunc {
 			var r sumResult
 			db.Model(&model.TaskLog{}).
 				Select("COALESCE(SUM(exp_awarded), 0) as total").
-				Where("completed_at >= ? AND completed_at < ?", dayStart.UTC(), dayEnd.UTC()).
+				Where("datetime(completed_at) >= datetime(?) AND datetime(completed_at) < datetime(?)", dayStart.UTC(), dayEnd.UTC()).
 				Scan(&r)
 
 			if r.Total <= 0 {
@@ -453,7 +453,7 @@ func applyDurationBonus(db *gorm.DB, duration float64, date string) float64 {
 		var r sumResult
 		db.Model(&model.TaskLog{}).
 			Select("COALESCE(SUM(exp_awarded), 0) as total").
-			Where("completed_at >= ? AND completed_at < ?", dayStart.UTC(), dayEnd.UTC()).
+			Where("datetime(completed_at) >= datetime(?) AND datetime(completed_at) < datetime(?)", dayStart.UTC(), dayEnd.UTC()).
 			Scan(&r)
 		if r.Total <= 0 {
 			return 0

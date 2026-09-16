@@ -297,7 +297,7 @@ func buildContext(db *gorm.DB) string {
 	}
 	db.Model(&model.TaskLog{}).
 		Select("COUNT(*) as count, COALESCE(SUM(exp_awarded), 0) as total").
-		Where("completed_at >= ? AND completed_at < ?", todayStart, todayEnd).
+		Where("datetime(completed_at) >= datetime(?) AND datetime(completed_at) < datetime(?)", todayStart, todayEnd).
 		Scan(&tr)
 	sb.WriteString(fmt.Sprintf("- 任务：完成 %d 条，获得 %.1f 积分\n", tr.Count, tr.Total))
 

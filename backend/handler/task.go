@@ -79,18 +79,18 @@ func GetTasks(db *gorm.DB) gin.HandlerFunc {
 			var todayCount, weekCount, seasonCount int64
 
 			db.Model(&model.TaskLog{}).
-				Where("task_id = ? AND completed_at >= ? AND completed_at < ?",
+				Where("task_id = ? AND datetime(completed_at) >= datetime(?) AND datetime(completed_at) < datetime(?)",
 					t.ID, todayStart, todayEnd).
 				Count(&todayCount)
 
 			db.Model(&model.TaskLog{}).
-				Where("task_id = ? AND completed_at >= ?", t.ID, weekStart).
+				Where("task_id = ? AND datetime(completed_at) >= datetime(?)", t.ID, weekStart).
 				Count(&weekCount)
 
 			// 赛季任务：从赛季开始日 CST 00:00 起算
 			seasonStartTime, _ := time.ParseInLocation("2006-01-02", seasonStart, cst)
 			db.Model(&model.TaskLog{}).
-				Where("task_id = ? AND completed_at >= ?", t.ID, seasonStartTime.UTC()).
+				Where("task_id = ? AND datetime(completed_at) >= datetime(?)", t.ID, seasonStartTime.UTC()).
 				Count(&seasonCount)
 
 			result[i] = TaskWithStatus{
@@ -168,7 +168,7 @@ func GetIncompleteSeasonTasks(db *gorm.DB) gin.HandlerFunc {
 		for _, t := range tasks {
 			var count int64
 			db.Model(&model.TaskLog{}).
-				Where("task_id = ? AND completed_at >= ? AND completed_at < ?",
+				Where("task_id = ? AND datetime(completed_at) >= datetime(?) AND datetime(completed_at) < datetime(?)",
 					t.ID, seasonStartTime.UTC(), seasonEndTime.UTC()).
 				Count(&count)
 			if count == 0 {

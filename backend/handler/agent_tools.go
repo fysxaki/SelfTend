@@ -141,7 +141,7 @@ func executeReadTool(db *gorm.DB, name, argsJSON string) string {
 		dayStart, _ := time.ParseInLocation("2006-01-02", today, cst)
 		dayEnd := dayStart.Add(24 * time.Hour)
 		var logs []model.TaskLog
-		db.Where("completed_at >= ? AND completed_at < ?", dayStart.UTC(), dayEnd.UTC()).Find(&logs)
+		db.Where("datetime(completed_at) >= datetime(?) AND datetime(completed_at) < datetime(?)", dayStart.UTC(), dayEnd.UTC()).Find(&logs)
 		var earned float64
 		for _, l := range logs {
 			earned += l.ExpAwarded
@@ -176,7 +176,7 @@ func executeReadTool(db *gorm.DB, name, argsJSON string) string {
 		dayStart, _ := time.ParseInLocation("2006-01-02", today, cst)
 		dayEnd := dayStart.Add(24 * time.Hour)
 		var logs []model.TaskLog
-		db.Where("completed_at >= ? AND completed_at < ?", dayStart.UTC(), dayEnd.UTC()).Find(&logs)
+		db.Where("datetime(completed_at) >= datetime(?) AND datetime(completed_at) < datetime(?)", dayStart.UTC(), dayEnd.UTC()).Find(&logs)
 		ids := make([]uint, 0, len(logs))
 		for _, l := range logs {
 			ids = append(ids, l.TaskID)
