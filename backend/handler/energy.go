@@ -13,7 +13,7 @@ import (
 
 type CreateEnergyLogReq struct {
 	Date        string `json:"date"`         // YYYY-MM-DD，不填则用今天
-	EnergyLevel int    `json:"energy_level"` // 1-5
+	EnergyLevel int    `json:"energy_level"` // 1-4（对齐 Garmin 四档）
 	Note        string `json:"note"`
 }
 
@@ -25,8 +25,8 @@ func CreateEnergyLog(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		if req.EnergyLevel < 1 || req.EnergyLevel > 5 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "energy_level 必须在 1-5 之间"})
+		if req.EnergyLevel < 1 || req.EnergyLevel > 4 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "energy_level 必须在 1-4 之间（1=差 2=一般 3=良好 4=优秀）"})
 			return
 		}
 
@@ -46,6 +46,7 @@ func CreateEnergyLog(db *gorm.DB) gin.HandlerFunc {
 			Date:        date,
 			EnergyLevel: req.EnergyLevel,
 			Note:        req.Note,
+			Source:      "manual",
 		}
 		db.Create(&log)
 		c.JSON(http.StatusOK, log)
@@ -55,9 +56,10 @@ func CreateEnergyLog(db *gorm.DB) gin.HandlerFunc {
 // ImportEnergyLogReq 外部自动同步（Garmin 身体电量等）
 type ImportEnergyLogReq struct {
 	Date        string `json:"date"`         // YYYY-MM-DD（不填=今天）
-	EnergyLevel int    `json:"energy_level"` // 1-5
+	EnergyLevel int    `json:"energy_level"` // 1-4（对齐 Garmin 四档）
 	Note        string `json:"note"`
-	Source      string `json:"source"` // 来源标签，可选，默认 garmin
+	SleepScore  int    `json:"sleep_score"` // Garmin 原始睡眠分数 0-100，可选
+	Source      string `json:"source"`      // 来源标签，可选，默认 garmin
 }
 
 // ImportEnergyLog 外部自动同步入口（走 X-Import-Secret，与睡眠导入同一套鉴权）。
@@ -75,8 +77,8 @@ func ImportEnergyLog(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		if req.EnergyLevel < 1 || req.EnergyLevel > 5 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "energy_level 必须在 1-5 之间"})
+		if req.EnergyLevel < 1 || req.EnergyLevel > 4 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "energy_level 必须在 1-4 之间（1=差 2=一般 3=良好 4=优秀）"})
 			return
 		}
 
@@ -103,13 +105,14 @@ func ImportEnergyLog(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		// 幂等：同一自动记录且能量值没变 → 跳过
-		if findErr == nil && existing.EnergyLevel == req.EnergyLevel {
+		if findErr == nil && existing.EnergyLevel == req.EnergyLevel && existing.SleepScore == req.SleepScore {
 			c.JSON(http.StatusOK, gin.H{"unchanged": true, "log": existing})
 			return
 		}
 
 		if findErr == nil {
 			existing.EnergyLevel = req.EnergyLevel
+			existing.SleepScore = req.SleepScore
 			existing.Note = req.Note
 			existing.Source = source
 			db.Save(&existing)
@@ -120,6 +123,7 @@ func ImportEnergyLog(db *gorm.DB) gin.HandlerFunc {
 		log := model.EnergyLog{
 			Date:        date,
 			EnergyLevel: req.EnergyLevel,
+			SleepScore:  req.SleepScore,
 			Note:        req.Note,
 			Source:      source,
 		}
@@ -163,13 +167,16 @@ func UpdateEnergyLog(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		if req.EnergyLevel < 1 || req.EnergyLevel > 5 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "energy_level 必须在 1-5 之间"})
+		if req.EnergyLevel < 1 || req.EnergyLevel > 4 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "energy_level 必须在 1-4 之间（1=差 2=一般 3=良好 4=优秀）"})
 			return
 		}
 
 		log.EnergyLevel = req.EnergyLevel
 		log.Note = req.Note
+		// 手动改过就归为手动记录：清掉 Garmin 原始分数，并防止下次自动同步覆盖
+		log.SleepScore = 0
+		log.Source = "manual"
 		db.Save(&log)
 		c.JSON(http.StatusOK, log)
 	}

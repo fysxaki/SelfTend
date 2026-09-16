@@ -251,7 +251,17 @@ func GetReviews(db *gorm.DB) gin.HandlerFunc {
 // 复盘上下文的历史窗口：14 天，与前端睡眠统计的生物钟窗口一致
 const reviewWindowDays = 14
 
-var energyLabels = map[int]string{1: "很差", 2: "较差", 3: "一般", 4: "不错", 5: "满血"}
+// energyLabels 对齐 Garmin 睡眠分数四档分级
+var energyLabels = map[int]string{1: "差", 2: "一般", 3: "良好", 4: "优秀"}
+
+// energyDesc 渲染能量：有 Garmin 原始分数时一并给出，让教练能引用真实分数
+func energyDesc(level, score int) string {
+	label := energyLabels[level]
+	if score > 0 {
+		return fmt.Sprintf("%s（Garmin 睡眠分数 %d）", label, score)
+	}
+	return label
+}
 
 // cnWeekday 返回中文星期几
 func cnWeekday(t time.Time) string {
@@ -285,7 +295,7 @@ func buildContext(db *gorm.DB) string {
 
 	var todayEnergy model.EnergyLog
 	if err := db.Where("date = ?", today).First(&todayEnergy).Error; err == nil {
-		sb.WriteString(fmt.Sprintf("- 能量：%d/5（%s）\n", todayEnergy.EnergyLevel, energyLabels[todayEnergy.EnergyLevel]))
+		sb.WriteString(fmt.Sprintf("- 睡眠质量：%s\n", energyDesc(todayEnergy.EnergyLevel, todayEnergy.SleepScore)))
 	} else {
 		sb.WriteString("- 能量：今天还没有记录\n")
 	}
@@ -330,7 +340,7 @@ func buildContext(db *gorm.DB) string {
 	if len(energyLogs) > 0 {
 		sb.WriteString(fmt.Sprintf("\n【近 %d 天能量】\n", reviewWindowDays))
 		for _, e := range energyLogs {
-			sb.WriteString(fmt.Sprintf("- %s %d/5（%s）\n", mmdd(e.Date), e.EnergyLevel, energyLabels[e.EnergyLevel]))
+			sb.WriteString(fmt.Sprintf("- %s %s\n", mmdd(e.Date), energyDesc(e.EnergyLevel, e.SleepScore)))
 		}
 	}
 

@@ -53,9 +53,9 @@ const LineTooltip = ({ active, payload, label }: ChartTooltipProps) => {
       <div style={{ color: '#e5e7eb', marginBottom: 4 }}>{label}</div>
       {payload.map((p) => (
         <div key={p.name} style={{ color: p.color }}>
-          {p.name}：{typeof p.value === 'number' ? p.value.toFixed(p.name === '能量值' ? 0 : 1) : p.value}
+          {p.name}：{typeof p.value === 'number' ? p.value.toFixed(p.name === '睡眠分数' ? 0 : 1) : p.value}
           {p.name === '睡眠时长' ? 'h' : ''}
-          {p.name === '能量值' ? ' / 5' : ''}
+          {p.name === '睡眠分数' ? ' 分' : ''}
         </div>
       ))}
     </div>
@@ -78,7 +78,7 @@ const ScatterTooltip = ({ active, payload }: ChartTooltipProps) => {
     >
       <div style={{ color: '#e5e7eb' }}>{d?.date}</div>
       <div style={{ color: SLEEP_COLOR }}>睡眠：{d?.x?.toFixed(1)}h</div>
-      <div style={{ color: ENERGY_COLOR }}>能量：{d?.y} / 5</div>
+      <div style={{ color: ENERGY_COLOR }}>睡眠分数：{d?.y} / 100</div>
       {d?.penalized && <div style={{ color: PENALTY_COLOR }}>触发惩罚</div>}
     </div>
   )
@@ -111,19 +111,19 @@ export default function AnalyticsPage() {
       data.map((item) => ({
         date: dayjs(item.date).format('MM/DD'),
         睡眠时长: item.duration > 0 ? Number(item.duration.toFixed(1)) : null,
-        能量值: item.energy_level > 0 ? item.energy_level : null,
+        睡眠分数: item.sleep_score > 0 ? item.sleep_score : null,
       })),
     [data],
   )
 
-  // 散点图数据：睡眠时长 + 能量值都有记录的天
+  // 散点图数据：睡眠时长 + 睡眠分数都有记录的天
   const scatterData = useMemo(
     () =>
       data
-        .filter((item) => item.duration > 0 && item.energy_level > 0)
+        .filter((item) => item.duration > 0 && item.sleep_score > 0)
         .map((item) => ({
           x: Number(item.duration.toFixed(2)),
-          y: item.energy_level,
+          y: item.sleep_score,
           date: item.date,
           penalized: item.penalized,
         })),
@@ -152,14 +152,14 @@ export default function AnalyticsPage() {
   // 统计摘要
   const stats = useMemo(() => {
     const withSleep = data.filter((d) => d.duration > 0)
-    const withEnergy = data.filter((d) => d.energy_level > 0)
+    const withEnergy = data.filter((d) => d.sleep_score > 0)
     const avgSleep =
       withSleep.length > 0
         ? withSleep.reduce((a, d) => a + d.duration, 0) / withSleep.length
         : 0
     const avgEnergy =
       withEnergy.length > 0
-        ? withEnergy.reduce((a, d) => a + d.energy_level, 0) / withEnergy.length
+        ? withEnergy.reduce((a, d) => a + d.sleep_score, 0) / withEnergy.length
         : 0
     const penaltyDays = data.filter((d) => d.penalized).length
     return { avgSleep, avgEnergy, penaltyDays, totalDays: data.length }
@@ -217,7 +217,7 @@ export default function AnalyticsPage() {
           {
             icon: <ThunderboltOutlined style={{ fontSize: 20, color: ENERGY_COLOR }} />,
             value: stats.avgEnergy.toFixed(1),
-            label: '平均能量值 / 5',
+            label: '平均睡眠分数',
             color: ENERGY_COLOR,
             accentColor: ENERGY_COLOR,
           },
@@ -271,9 +271,9 @@ export default function AnalyticsPage() {
         <>
           {/* 双轴折线图 */}
           <Card
-            title="睡眠时长 & 能量值趋势"
+            title="睡眠时长 & 睡眠分数趋势"
             style={{ marginBottom: 24 }}
-            extra={<Text type="secondary" style={{ fontSize: 12 }}>左轴：睡眠时长（h）· 右轴：能量值（1-5）</Text>}
+            extra={<Text type="secondary" style={{ fontSize: 12 }}>左轴：睡眠时长（h）· 右轴：Garmin 睡眠分数（0-100）</Text>}
           >
             <ResponsiveContainer width="100%" height={280}>
               <ComposedChart data={lineData} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
@@ -295,7 +295,7 @@ export default function AnalyticsPage() {
                   domain={[0, 5]}
                   tickCount={6}
                   tick={{ fontSize: 11, fill: ENERGY_COLOR }}
-                  label={{ value: '/5', position: 'insideTopRight', fill: ENERGY_COLOR, fontSize: 11 }}
+                  label={{ value: '分', position: 'insideTopRight', fill: ENERGY_COLOR, fontSize: 11 }}
                 />
                 <Tooltip content={<LineTooltip />} />
                 <Legend
@@ -313,7 +313,7 @@ export default function AnalyticsPage() {
                 <Line
                   yAxisId="energy"
                   type="monotone"
-                  dataKey="能量值"
+                  dataKey="睡眠分数"
                   stroke={ENERGY_COLOR}
                   strokeWidth={2}
                   dot={{ fill: ENERGY_COLOR, r: 3 }}
@@ -325,7 +325,7 @@ export default function AnalyticsPage() {
 
           {/* 散点图 + 趋势线 */}
           <Card
-            title="睡眠时长 vs 能量值（相关性）"
+            title="睡眠时长 vs 睡眠分数（相关性）"
             extra={
               <Text type="secondary" style={{ fontSize: 12 }}>
                 {scatterData.length < 3
@@ -363,9 +363,9 @@ export default function AnalyticsPage() {
                     type="number"
                     domain={[0, 6]}
                     tickCount={6}
-                    name="能量值"
+                    name="睡眠分数"
                     tick={{ fontSize: 11, fill: '#9ca3af' }}
-                    label={{ value: '能量值', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }}
+                    label={{ value: '睡眠分数', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }}
                   />
                   <Tooltip content={<ScatterTooltip />} />
                   {/* 散点 */}

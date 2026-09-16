@@ -43,29 +43,27 @@ except ImportError:
 
 CST = ZoneInfo("Asia/Shanghai")
 
-# Garmin 睡眠分数 → SelfTend 能量等级。
-# 直接用 Garmin 返回的 qualifierKey 四档分级，不自己定阈值：
-# 这样完全贴合 App 里显示的分级，Garmin 以后调整阈值也会自动跟随。
-# 能量字段是 1-5，四档取 2-5：让 EXCELLENT 对齐「满血 5」、FAIR 对齐「一般 3」，
-# 档位连续不跳号（POOR 落 2 而非 1，是为了不在趋势图上留一个永不出现的空档）。
-QUALIFIER_TO_ENERGY = {
-    "POOR": 2,
-    "FAIR": 3,
-    "GOOD": 4,
-    "EXCELLENT": 5,
+# Garmin 睡眠分数 → SelfTend 睡眠质量分级。
+# 直接用 Garmin 返回的 qualifierKey 原生四档，不自己定阈值：
+# 完全贴合 App 里显示的分级，Garmin 日后调整阈值也自动跟随。
+QUALIFIER_TO_LEVEL = {
+    "POOR": 1,
+    "FAIR": 2,
+    "GOOD": 3,
+    "EXCELLENT": 4,
 }
 
 # 兜底：极少数情况下 qualifierKey 缺失，按 Garmin 官方公开阈值判断
-SCORE_FALLBACK_BANDS = [(59, 2), (79, 3), (89, 4), (100, 5)]
+SCORE_FALLBACK_BANDS = [(59, 1), (79, 2), (89, 3), (100, 4)]
 
 
-def sleep_score_to_energy(score: int, qualifier: str | None = None) -> int:
-    if qualifier and qualifier.upper() in QUALIFIER_TO_ENERGY:
-        return QUALIFIER_TO_ENERGY[qualifier.upper()]
-    for upper, energy in SCORE_FALLBACK_BANDS:
+def sleep_score_to_level(score: int, qualifier: str | None = None) -> int:
+    if qualifier and qualifier.upper() in QUALIFIER_TO_LEVEL:
+        return QUALIFIER_TO_LEVEL[qualifier.upper()]
+    for upper, level in SCORE_FALLBACK_BANDS:
         if score <= upper:
-            return energy
-    return 5
+            return level
+    return 4
 
 
 def env(key: str, default: str = "") -> str:
@@ -175,15 +173,15 @@ def sync_energy(garmin, cdate, url, secret, dry_run) -> bool:
         print(f"ℹ️  {cdate} 无睡眠分数，跳过能量同步。")
         return True
 
-    level = sleep_score_to_energy(score, qualifier)
+    level = sleep_score_to_level(score, qualifier)
     payload = {
         "date": cdate,
         "energy_level": level,
-        # 备注留原始分数与 Garmin 分级，方便回看映射准不准
-        "note": f"Garmin 睡眠分数 {score}" + (f"（{qualifier}）" if qualifier else ""),
+        "sleep_score": score,  # 原始分数一并存下，UI 直接展示
+        "note": f"Garmin {qualifier}" if qualifier else "",
         "source": "garmin",
     }
-    print(f"😴 Garmin 睡眠分数：{cdate} {score} 分{f'（{qualifier}）' if qualifier else ''} → 能量 {level}/5")
+    print(f"😴 Garmin 睡眠分数：{cdate} {score} 分{f'（{qualifier}）' if qualifier else ''} → 分级 {level}/4")
     if dry_run:
         print("🧪 dry-run，不写入。payload=", payload)
         return True

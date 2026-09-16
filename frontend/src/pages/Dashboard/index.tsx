@@ -53,7 +53,7 @@ export default function Dashboard() {
         const created = await createEnergyLog({ energy_level: level })
         setTodayEnergy(created)
       }
-      message.success(`能量值已记录：${level} / 5`)
+      message.success(`已记录：${ENERGY_LEVELS.find((l) => l.value === level)?.label ?? level}`)
     } catch {
       message.error('记录失败，请重试')
     } finally {
@@ -238,12 +238,12 @@ export default function Dashboard() {
 }
 
 // ── 今日能量快捷记录条 ────────────────────────────────────
+// 四档对齐 Garmin 睡眠分数原生分级（POOR/FAIR/GOOD/EXCELLENT）
 const ENERGY_LEVELS = [
-  { value: 1, emoji: '😴', label: '很差' },
-  { value: 2, emoji: '😞', label: '较差' },
-  { value: 3, emoji: '😐', label: '一般' },
-  { value: 4, emoji: '😊', label: '不错' },
-  { value: 5, emoji: '⚡', label: '满血' },
+  { value: 1, emoji: '😴', label: '差' },
+  { value: 2, emoji: '😐', label: '一般' },
+  { value: 3, emoji: '😊', label: '良好' },
+  { value: 4, emoji: '⚡', label: '优秀' },
 ]
 
 function EnergyBar({
@@ -273,7 +273,7 @@ function EnergyBar({
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
         <ThunderboltOutlined style={{ color: '#6ba39d', fontSize: 14 }} />
-        <span style={{ fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' }}>此刻感觉怎么样？</span>
+        <span style={{ fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' }}>昨晚睡得怎么样？</span>
       </div>
 
       <div style={{ display: 'flex', gap: 8, flex: 1 }}>

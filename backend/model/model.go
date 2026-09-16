@@ -87,7 +87,10 @@ type SleepLog struct {
 type EnergyLog struct {
 	ID          uint   `json:"id" gorm:"primaryKey"`
 	Date        string `json:"date"`         // YYYY-MM-DD (CST)
-	EnergyLevel int    `json:"energy_level"` // 1-5
+	// EnergyLevel 睡眠质量分级，对齐 Garmin 原生四档：1=POOR 差 2=FAIR 一般 3=GOOD 良好 4=EXCELLENT 优秀
+	EnergyLevel int `json:"energy_level"`
+	// SleepScore Garmin 原始睡眠分数 0-100；手动记录时为 0（表示无原始分数）
+	SleepScore int `json:"sleep_score"`
 	Note        string `json:"note"`
 	// Source 来源：空 / "manual"=手动录入；"garmin"=身体电量自动同步。
 	// 注意：该字段晚于本表加入，历史记录为空值，判断手动记录时空值也按手动处理

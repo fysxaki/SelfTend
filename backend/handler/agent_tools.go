@@ -79,10 +79,10 @@ func agentTools() []DSTool {
 			},
 			"required": []string{"task_id"},
 		}),
-		fn("log_energy", "记录今日能量值（1-5）。", map[string]any{
+		fn("log_energy", "记录今日睡眠质量分级（1-4，对齐 Garmin 分级）。", map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"energy_level": map[string]any{"type": "integer", "description": "能量值 1-5"},
+				"energy_level": map[string]any{"type": "integer", "description": "睡眠质量分级 1-4（1=差 2=一般 3=良好 4=优秀）"},
 				"note":         map[string]any{"type": "string", "description": "可选备注"},
 			},
 			"required": []string{"energy_level"},
@@ -243,13 +243,13 @@ func buildProposal(db *gorm.DB, name, argsJSON string) (AgentProposal, error) {
 			Note        string `json:"note"`
 		}
 		json.Unmarshal([]byte(argsJSON), &a)
-		if a.EnergyLevel < 1 || a.EnergyLevel > 5 {
-			return AgentProposal{}, fmt.Errorf("energy_level 需为 1-5")
+		if a.EnergyLevel < 1 || a.EnergyLevel > 4 {
+			return AgentProposal{}, fmt.Errorf("energy_level 需为 1-4")
 		}
 		return AgentProposal{
 			ActionType:   "log_energy",
 			Params:       map[string]any{"energy_level": a.EnergyLevel, "note": a.Note},
-			HumanSummary: fmt.Sprintf("记录今日能量为 %d/5", a.EnergyLevel),
+			HumanSummary: fmt.Sprintf("记录今日睡眠质量为 %d/4", a.EnergyLevel),
 		}, nil
 
 	case "add_worry":

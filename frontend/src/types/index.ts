@@ -95,8 +95,10 @@ export interface SleepLog {
 export interface EnergyLog {
   id: number
   date: string        // YYYY-MM-DD
-  energy_level: number // 1-5
+  energy_level: number // 1-4：1=差 2=一般 3=良好 4=优秀（对齐 Garmin 分级）
+  sleep_score: number  // Garmin 原始睡眠分数 0-100，0 表示无（手动记录）
   note: string
+  source?: string
   created_at: string
 }
 
@@ -104,7 +106,8 @@ export interface AnalyticsItem {
   date: string
   sleep_time: string
   duration: number
-  energy_level: number // 0 表示未记录
+  energy_level: number // 1-4，0 表示未记录
+  sleep_score: number  // Garmin 原始睡眠分数 0-100，0 表示无
   penalized: boolean
   penalty_exp: number
 }

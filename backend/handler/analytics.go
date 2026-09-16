@@ -15,7 +15,8 @@ type AnalyticsItem struct {
 	Date        string  `json:"date"`
 	SleepTime   string  `json:"sleep_time"`   // 入睡时间 HH:MM
 	Duration    float64 `json:"duration"`     // 睡眠时长（小时）
-	EnergyLevel int     `json:"energy_level"` // 1-5，0 表示未记录
+	EnergyLevel int     `json:"energy_level"` // 1-4，0 表示未记录
+	SleepScore  int     `json:"sleep_score"`  // Garmin 原始睡眠分数 0-100，0 表示无
 	Penalized   bool    `json:"penalized"`    // 是否触发惩罚
 	PenaltyExp  float64 `json:"penalty_exp"`  // 被扣积分
 }
@@ -75,6 +76,7 @@ func GetAnalytics(db *gorm.DB) gin.HandlerFunc {
 			}
 			if e, ok := energyMap[date]; ok {
 				item.EnergyLevel = e.EnergyLevel
+				item.SleepScore = e.SleepScore
 			}
 			items = append(items, item)
 		}
