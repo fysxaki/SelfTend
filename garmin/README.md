@@ -81,6 +81,18 @@ systemctl list-timers selftend-garmin-sync
 ./.venv/bin/python garmin_sync.py --date 2026-09-13 --dry-run
 ```
 
+## 自动补漏
+
+手表要打开手机 App 才会同步到 Garmin 云。如果某天最后一次定时任务（21:00）跑完后
+你才打开 App，那天就会漏掉。
+
+脚本每次运行会先问后端 `GET /api/sync-status?days=7`，把**最近 7 天完全没记录的日子**
+一并补上。所以即使某天三次都没赶上，第二天也会自动补回来，不用手动管。
+
+- 关闭补漏：`--backfill-days 0`
+- 扩大窗口：`--backfill-days 14`（上限 30）
+- 已有手动记录的日子不算缺口，不会被自动同步覆盖
+
 ## 注意
 
 - **佳明中国账号**：Garmin 中国 App（connect.garmin.cn）注册的账号，在 `.env` 设 `GARMIN_IS_CN=true`；国际版留 false。

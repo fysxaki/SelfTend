@@ -113,6 +113,25 @@ def fetch_sleep_score(garmin: Garmin, cdate: str):
     return overall.get("value"), overall.get("qualifierKey")
 
 
+def fetch_missing_dates(base_url: str, secret: str, days: int):
+    """问后端最近 days 天里哪几天完全没记录，用于自动补漏。
+    查不通（后端旧版/网络问题）时返回空，不影响当天正常同步。"""
+    url = base_url.replace("/sleep-logs/import", "/sync-status")
+    try:
+        resp = requests.get(
+            url, params={"days": days},
+            headers={"X-Import-Secret": secret}, timeout=15,
+        )
+        if resp.status_code != 200:
+            print(f"⚠️  查询补漏状态失败 HTTP {resp.status_code}，跳过补漏", file=sys.stderr)
+            return [], []
+        d = resp.json()
+        return d.get("missing_sleep") or [], d.get("missing_energy") or []
+    except requests.RequestException as e:
+        print(f"⚠️  查询补漏状态失败：{e}，跳过补漏", file=sys.stderr)
+        return [], []
+
+
 def post_import(url: str, payload: dict, secret: str) -> bool:
     try:
         resp = requests.post(
@@ -195,6 +214,10 @@ def main() -> int:
     parser.add_argument(
         "--only", choices=["sleep", "energy"], help="只同步其中一项（默认两项都同步）"
     )
+    parser.add_argument(
+        "--backfill-days", type=int, default=7,
+        help="自动补漏窗口天数，检查最近 N 天有没有漏记的日子并补上（0=关闭，默认 7）",
+    )
     args = parser.parse_args()
 
     sleep_url = env("SELFTEND_IMPORT_URL", "http://localhost:8080/api/sleep-logs/import")
@@ -220,6 +243,26 @@ def main() -> int:
         energy_date = today.isoformat()
 
     ok = True
+
+    # ── 自动补漏 ──
+    # 手表要打开手机 App 才会同步到 Garmin 云。若某天最后一次定时任务跑完后
+    # 才同步，那天就漏了。这里每次运行都把窗口内漏掉的日子补上。
+    # 指定了 --date 时不补漏（那是手动指定单日的场景）。
+    if args.backfill_days > 0 and not args.date and not args.dry_run:
+        miss_sleep, miss_energy = fetch_missing_dates(sleep_url, secret, args.backfill_days)
+        # 今天在下面单独同步，这里只补历史缺口
+        miss_sleep = [d for d in miss_sleep if d != today.isoformat()]
+        miss_energy = [d for d in miss_energy if d != today.isoformat()]
+        if miss_sleep or miss_energy:
+            print(f"🔁 检测到缺口（近 {args.backfill_days} 天）：睡眠 {miss_sleep or '无'}，能量 {miss_energy or '无'}")
+        for d in miss_sleep:
+            if args.only != "energy":
+                ok &= sync_sleep(garmin, [d], sleep_url, secret, False)
+        for d in miss_energy:
+            if args.only != "sleep":
+                ok &= sync_energy(garmin, d, energy_url, secret, False)
+
+    # ── 今天 ──
     if args.only != "energy":
         ok &= sync_sleep(garmin, sleep_candidates, sleep_url, secret, args.dry_run)
     if args.only != "sleep":

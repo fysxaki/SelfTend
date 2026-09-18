@@ -5,11 +5,12 @@ Description=SelfTend Garmin Sleep Sync schedule
 #   （1_setup.sh 已执行 timedatectl set-timezone Asia/Shanghai）。
 #   否则时间点会错（如 UTC 下 10:00 实际是北京 18:00）。
 [Timer]
-# 工作日 10:00
-OnCalendar=Mon..Fri *-*-* 10:00:00
-# 周末 15:00
-OnCalendar=Sat,Sun *-*-* 15:00:00
-# 每天 21:00 兜底（熬大夜 / 白天没同步上的晚上补）
+# 每天三个点都跑，不再区分工作日/周末：
+#   10:00 工作日起床后 · 15:00 周末睡懒觉后 · 21:00 睡前兜底
+# 脚本幂等（数据没变会跳过），多跑无副作用；且自带最近 7 天自动补漏，
+# 即使某天三次都没赶上（手表还没同步到手机），第二天也会自动补回来。
+OnCalendar=*-*-* 10:00:00
+OnCalendar=*-*-* 15:00:00
 OnCalendar=*-*-* 21:00:00
 # 错过的点（关机/重启）开机后补跑一次
 Persistent=true

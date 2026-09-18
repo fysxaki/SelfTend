@@ -61,6 +61,8 @@ func main() {
 	// 外部自动导入（iOS HealthKit / Garmin 定时同步）：独立 X-Import-Secret 鉴权，不走主 access code
 	r.POST("/api/sleep-logs/import", middleware.ImportSecret(), handler.ImportSleepLog(db))
 	r.POST("/api/energy-logs/import", middleware.ImportSecret(), handler.ImportEnergyLog(db))
+	// 供同步脚本查「最近哪几天缺记录」，用于自动补漏
+	r.GET("/api/sync-status", middleware.ImportSecret(), handler.SyncStatus(db))
 
 	// 受保护路由
 	api := r.Group("/api", middleware.AccessCode())
