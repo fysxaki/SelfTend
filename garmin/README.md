@@ -5,10 +5,11 @@
 ## 原理
 
 ```
-systemd timer（工作日10:00 / 周末15:00 / 每天21:00 兜底）
+systemd timer（每天 10:00 / 15:00 / 21:00）
   → garmin_sync.py
       · 用已保存的 garth token 登录（首次用账号密码换 token，之后复用 ~1 年）
-      · 拉最近一晚睡眠 start/end → 转成 CST 的 入睡/起床 时间
+      · 先补最近 7 天的缺口，再拉当天：睡眠 start/end → CST 入睡/起床、
+        睡眠分数 → 四档分级、nextSleepNeed → 建议睡眠时长
   → POST http://localhost:8080/api/sleep-logs/import  (X-Import-Secret, source=garmin)
       · 后端算时长/奖惩；手动记录永远优先，不被覆盖；同一自动记录时间没变则幂等跳过
 ```
@@ -52,8 +53,8 @@ vim .env          # 填 GARMIN_EMAIL / GARMIN_PASSWORD；SLEEP_IMPORT_SECRET 必
 # 2. 装依赖（部署脚本会自动做，这里手动也行）
 python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
 
-# 3. 换 token（开了两步验证会提示输验证码；换到后 token 存进 tokens/，之后无需密码）
-./.venv/bin/python garmin_login.py
+# 3. 换 token（佳明中国用 ticket 方式，见上一节；国际版才用 garmin_login.py）
+./.venv/bin/python garmin_login_ticket.py
 
 # 4. 验证拉取（不写库）
 ./.venv/bin/python garmin_sync.py --dry-run
