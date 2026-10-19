@@ -89,6 +89,10 @@ export interface SleepLog {
   penalized: boolean
   penalty_exp: number
   bonus_exp: number   // 正数=时长奖励，负数=不足6小时惩罚
+  wake_bonus_exp: number  // 固定时间起床奖励
+  asleep_minutes: number  // Garmin 实际睡着分钟数，0 = 无数据
+  awake_minutes: number   // Garmin 夜间清醒分钟数
+  source: string
   created_at: string
 }
 

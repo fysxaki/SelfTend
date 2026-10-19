@@ -150,7 +150,7 @@ def post_import(url: str, payload: dict, secret: str) -> bool:
     return True
 
 
-def sync_sleep(garmin, candidates, url, secret, dry_run) -> bool:
+def sync_sleep(garmin, candidates, url, secret, dry_run, include_need=True) -> bool:
     dto = None
     for cdate in candidates:
         dto = fetch_sleep_dto(garmin, cdate)
@@ -168,16 +168,25 @@ def sync_sleep(garmin, candidates, url, secret, dry_run) -> bool:
         "wake_time": end.strftime("%H:%M"),
         "source": "garmin",
     }
+    # 实际睡着 / 夜间清醒时长，后端据此算睡眠效率（asleep / (asleep + awake)）
+    if dto.get("sleepTimeSeconds"):
+        payload["asleep_minutes"] = int(dto["sleepTimeSeconds"]) // 60
+        payload["awake_minutes"] = int(dto.get("awakeSleepSeconds") or 0) // 60
     # Garmin 对「下一次睡眠」的建议时长（nextSleepNeed.actual，分钟）。
     # baseline 是个人基线，actual 是结合训练负荷/睡眠债后的实际建议，取 actual。
     # 传给后端存进 UserConfig，前端「今晚建议入睡」据此自动倒推，免手填。
-    need = dto.get("nextSleepNeed") or {}
+    # 回填旧日期时不带：否则会把当前的建议覆盖成过期的
+    need = (dto.get("nextSleepNeed") or {}) if include_need else {}
     need_minutes, need_date = need.get("actual"), need.get("calendarDate")
     if need_minutes and need_date:
         payload["sleep_need_minutes"] = int(need_minutes)
         payload["sleep_need_date"] = need_date
 
-    print(f"🌙 Garmin 睡眠：{payload['date']} {payload['sleep_time']} → {payload['wake_time']}")
+    eff = ""
+    if payload.get("asleep_minutes"):
+        total = payload["asleep_minutes"] + payload["awake_minutes"]
+        eff = f"，效率 {payload['asleep_minutes'] * 100 / total:.0f}%"
+    print(f"🌙 Garmin 睡眠：{payload['date']} {payload['sleep_time']} → {payload['wake_time']}{eff}")
     if need_minutes and need_date:
         print(f"💤 Garmin 建议睡眠时长：{need_date} 需 {need_minutes} 分钟（{need_minutes / 60:.1f}h）")
     if dry_run:
@@ -217,6 +226,11 @@ def main() -> int:
     parser.add_argument(
         "--backfill-days", type=int, default=7,
         help="自动补漏窗口天数，检查最近 N 天有没有漏记的日子并补上（0=关闭，默认 7）",
+    )
+    parser.add_argument(
+        "--refill-days", type=int, default=0,
+        help="重新同步最近 N 天（不含今天）的睡眠，给已有记录补睡眠效率数据；"
+             "时间没变的记录不会改动积分，一次性使用即可（默认 0=不回填）",
     )
     args = parser.parse_args()
 
@@ -261,6 +275,13 @@ def main() -> int:
         for d in miss_energy:
             if args.only != "sleep":
                 ok &= sync_energy(garmin, d, energy_url, secret, False)
+
+    # ── 回填睡眠效率（一次性）──
+    if args.refill_days > 0 and args.only != "energy":
+        print(f"🔁 回填最近 {args.refill_days} 天的睡眠效率数据")
+        for i in range(1, args.refill_days + 1):
+            d = (today - timedelta(days=i)).isoformat()
+            ok &= sync_sleep(garmin, [d], sleep_url, secret, args.dry_run, include_need=False)
 
     # ── 今天 ──
     if args.only != "energy":

@@ -69,18 +69,35 @@ type RedemptionLog struct {
 
 // SleepLog 睡眠记录
 type SleepLog struct {
-	ID         uint      `json:"id" gorm:"primaryKey"`
-	Date       string    `json:"date"`        // YYYY-MM-DD (CST)
-	SleepTime  string    `json:"sleep_time"`  // HH:MM (CST)，入睡时间
-	WakeTime   string    `json:"wake_time"`   // HH:MM (CST)，起床时间，默认 08:52
-	Duration   float64   `json:"duration"`    // 睡眠时长（小时）
-	Penalized  bool      `json:"penalized"`   // 是否触发晚睡惩罚
-	PenaltyExp float64   `json:"penalty_exp"` // 晚睡扣除的积分
-	BonusExp   float64   `json:"bonus_exp"`   // 时长奖励/惩罚：正数=奖励，负数=不足6小时惩罚
+	ID         uint    `json:"id" gorm:"primaryKey"`
+	Date       string  `json:"date"`        // YYYY-MM-DD (CST)
+	SleepTime  string  `json:"sleep_time"`  // HH:MM (CST)，入睡时间
+	WakeTime   string  `json:"wake_time"`   // HH:MM (CST)，起床时间，默认 08:52
+	Duration   float64 `json:"duration"`    // 睡眠时长（小时）
+	Penalized  bool    `json:"penalized"`   // 是否触发晚睡惩罚
+	PenaltyExp float64 `json:"penalty_exp"` // 晚睡扣除的积分
+	BonusExp   float64 `json:"bonus_exp"`   // 时长奖励/惩罚：正数=奖励，负数=不足6小时惩罚
 	// Source 记录来源：空 / "manual"=手动录入；"healthkit"=iOS 健康自动导入；
 	// 手动记录优先级更高，自动导入不会覆盖
-	Source    string    `json:"source" gorm:"default:'manual'"`
-	CreatedAt time.Time `json:"created_at"`
+	Source string `json:"source" gorm:"default:'manual'"`
+	// Garmin 同步的实际睡着 / 夜间清醒分钟数，0 表示无数据（手动记录且没被同步补全过）。
+	// 睡眠效率 = asleep / (asleep + awake)。Garmin 的睡眠窗口从「检测到睡着」开始，
+	// 不含躺下到睡着那段，所以这个效率只反映夜里醒来的情况，反映不了入睡困难。
+	AsleepMinutes int `json:"asleep_minutes"`
+	AwakeMinutes  int `json:"awake_minutes"`
+	// WakeBonusExp 起床时间稳定奖励：与固定起床时间相差不超过 30 分钟时发放，编辑 / 删除时撤销
+	WakeBonusExp float64   `json:"wake_bonus_exp"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// WindDownCheck 睡前锚点打卡。每晚每个锚点最多一条，取消打卡时撤销已发积分，
+// 所以必须存后端（只存浏览器的话，来回勾选就能无限刷分）。
+type WindDownCheck struct {
+	ID         uint      `json:"id" gorm:"primaryKey"`
+	NightDate  string    `json:"night_date" gorm:"uniqueIndex:idx_night_step"` // 这一晚的日期，凌晨 6 点前算前一晚
+	StepKey    string    `json:"step_key" gorm:"uniqueIndex:idx_night_step"`
+	ExpAwarded float64   `json:"exp_awarded"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 // EnergyLog 每日能量记录

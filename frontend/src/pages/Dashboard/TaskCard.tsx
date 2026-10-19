@@ -44,7 +44,7 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
       const actualExp = res.task_log.exp_awarded
       if (res.penalty_applied) {
         message.warning({
-          content: `😴 晚睡惩罚 -20%  实得 +${formatExp(actualExp)} 积分`,
+          content: `😴 晚睡惩罚 -10%  实得 +${formatExp(actualExp)} 积分`,
           duration: 4,
         })
       } else {

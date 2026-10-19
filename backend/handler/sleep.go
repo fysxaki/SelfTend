@@ -21,6 +21,21 @@ const defaultWakeTime = "08:52"
 const penaltyThresholdHour = 1
 const penaltyThresholdMin = 30
 
+// 晚睡惩罚比例：入睡晚于 01:30 时，当天任务积分按这个比例扣。
+// 原为 20%，按 CBT-I「多奖励可控行为、少罚结果」降到 10%。没有完全取消，是因为对拖延入睡来说，
+// 入睡时间基本等于自己决定的上床时间，仍然值得约束；只是不宜重罚，免得睡前因为怕扣分而更紧张。
+const lateSleepPenaltyRate = 0.1
+
+// 起床时间稳定奖励：CBT-I 最核心的一条是「固定起床时间，周末也一样」。
+// 实际起床与配置的固定起床时间相差不超过 wakeBonusToleranceMin 分钟就发奖励。
+const (
+	wakeBonusExp          = 10.0
+	wakeBonusToleranceMin = 30
+	// 固定起床时间存 UserConfig，与前端同 key。key 名带 workday 是历史原因，现在工作日和休息日共用。
+	fixedWakeConfigKey = "workday_wake"
+	fixedWakeDefault   = "07:35"
+)
+
 type CreateSleepLogReq struct {
 	Date      string `json:"date"`       // YYYY-MM-DD，不填则用今天
 	SleepTime string `json:"sleep_time"` // HH:MM，必填
@@ -77,8 +92,11 @@ func CreateSleepLog(db *gorm.DB) gin.HandlerFunc {
 			log.PenaltyExp = applyRetroactivePenalty(db, date)
 		}
 
-		// 时长奖惩：<6h 扣该日任务积分20%，7-8h +12分，>=8h +52分
+		// 时长奖惩：<6h 扣该日任务积分20%，6→8h 线性 0~+52，>=8h 封顶
 		log.BonusExp = applyDurationBonus(db, duration, date)
+		if req.WakeTime != "" {
+			log.WakeBonusExp = applyWakeBonus(db, wakeTime)
+		}
 
 		db.Create(&log)
 		c.JSON(http.StatusOK, log)
@@ -140,10 +158,9 @@ func UpdateSleepLog(db *gorm.DB) gin.HandlerFunc {
 		if log.Penalized && log.PenaltyExp > 0 {
 			refundStats(db, log.PenaltyExp)
 		}
-		// 退还旧的时长奖惩（正数=曾加分需扣回，负数=曾扣分需补回）
-		if log.BonusExp != 0 {
-			refundStats(db, log.BonusExp)
-		}
+		// 撤销旧的时长奖惩和起床奖励（正数=曾加分需扣回，负数=曾扣分需补回）
+		revertAward(db, log.BonusExp)
+		revertAward(db, log.WakeBonusExp)
 
 		// 重新计算晚睡惩罚
 		log.SleepTime = sleepTime
@@ -155,8 +172,9 @@ func UpdateSleepLog(db *gorm.DB) gin.HandlerFunc {
 			log.PenaltyExp = applyRetroactivePenalty(db, log.Date)
 		}
 
-		// 重新计算时长奖惩
+		// 重新计算时长奖惩和起床奖励
 		log.BonusExp = applyDurationBonus(db, duration, log.Date)
+		log.WakeBonusExp = applyWakeBonus(db, wakeTime)
 
 		db.Save(&log)
 
@@ -174,6 +192,9 @@ type ImportSleepLogReq struct {
 	// 可选；传了就存进 UserConfig，供前端「今晚建议入睡」自动倒推，免去手填。
 	SleepNeedMinutes int    `json:"sleep_need_minutes"`
 	SleepNeedDate    string `json:"sleep_need_date"`
+	// 实际睡着 / 夜间清醒分钟数（Garmin sleepTimeSeconds / awakeSleepSeconds），可选，用于睡眠效率
+	AsleepMinutes int `json:"asleep_minutes"`
+	AwakeMinutes  int `json:"awake_minutes"`
 }
 
 // SleepNeedConfigKey 存 Garmin 建议睡眠时长的 UserConfig key（前端同名读取）
@@ -232,6 +253,7 @@ func ImportSleepLog(db *gorm.DB) gin.HandlerFunc {
 
 		// 已存在手动记录 → 不动，告诉调用方跳过（只有 manual 受保护，自动源之间可互相更新）
 		if findErr == nil && existing.Source == "manual" {
+			fillSleepMinutes(db, &existing, req.AsleepMinutes, req.AwakeMinutes)
 			c.JSON(http.StatusOK, gin.H{
 				"skipped": true,
 				"reason":  "manual record exists, auto-sync will not overwrite",
@@ -242,6 +264,7 @@ func ImportSleepLog(db *gorm.DB) gin.HandlerFunc {
 
 		// 幂等：已有自动记录且入睡/起床时间都没变 → 直接跳过，避免一天多次同步反复退还/重发积分
 		if findErr == nil && existing.SleepTime == req.SleepTime && existing.WakeTime == wakeTime {
+			fillSleepMinutes(db, &existing, req.AsleepMinutes, req.AwakeMinutes)
 			c.JSON(http.StatusOK, gin.H{"unchanged": true, "log": existing})
 			return
 		}
@@ -251,9 +274,8 @@ func ImportSleepLog(db *gorm.DB) gin.HandlerFunc {
 			if existing.Penalized && existing.PenaltyExp > 0 {
 				refundStats(db, existing.PenaltyExp)
 			}
-			if existing.BonusExp != 0 {
-				refundStats(db, existing.BonusExp)
-			}
+			revertAward(db, existing.BonusExp)
+			revertAward(db, existing.WakeBonusExp)
 			existing.SleepTime = req.SleepTime
 			existing.WakeTime = wakeTime
 			existing.Duration = duration
@@ -263,7 +285,13 @@ func ImportSleepLog(db *gorm.DB) gin.HandlerFunc {
 				existing.PenaltyExp = applyRetroactivePenalty(db, req.Date)
 			}
 			existing.BonusExp = applyDurationBonus(db, duration, req.Date)
+			existing.WakeBonusExp = 0
+			if req.WakeTime != "" {
+				existing.WakeBonusExp = applyWakeBonus(db, wakeTime)
+			}
 			existing.Source = source
+			existing.AsleepMinutes = req.AsleepMinutes
+			existing.AwakeMinutes = req.AwakeMinutes
 			db.Save(&existing)
 			c.JSON(http.StatusOK, gin.H{"updated": true, "log": existing})
 			return
@@ -271,17 +299,22 @@ func ImportSleepLog(db *gorm.DB) gin.HandlerFunc {
 
 		// 全新创建
 		log := model.SleepLog{
-			Date:      req.Date,
-			SleepTime: req.SleepTime,
-			WakeTime:  wakeTime,
-			Duration:  duration,
-			Source:    source,
+			Date:          req.Date,
+			SleepTime:     req.SleepTime,
+			WakeTime:      wakeTime,
+			Duration:      duration,
+			Source:        source,
+			AsleepMinutes: req.AsleepMinutes,
+			AwakeMinutes:  req.AwakeMinutes,
 		}
 		log.Penalized = isSleepPenalized(req.SleepTime)
 		if log.Penalized {
 			log.PenaltyExp = applyRetroactivePenalty(db, req.Date)
 		}
 		log.BonusExp = applyDurationBonus(db, duration, req.Date)
+		if req.WakeTime != "" {
+			log.WakeBonusExp = applyWakeBonus(db, wakeTime)
+		}
 		db.Create(&log)
 		c.JSON(http.StatusOK, gin.H{"created": true, "log": log})
 	}
@@ -301,10 +334,9 @@ func DeleteSleepLog(db *gorm.DB) gin.HandlerFunc {
 		if log.Penalized && log.PenaltyExp > 0 {
 			refundStats(db, log.PenaltyExp)
 		}
-		// 退还时长奖惩
-		if log.BonusExp != 0 {
-			refundStats(db, log.BonusExp)
-		}
+		// 撤销时长奖惩和起床奖励
+		revertAward(db, log.BonusExp)
+		revertAward(db, log.WakeBonusExp)
 
 		db.Delete(&log)
 		c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -373,7 +405,7 @@ func applyRetroactivePenalty(db *gorm.DB, date string) float64 {
 	if r.Total <= 0 {
 		return 0
 	}
-	penalty := r.Total * 0.2
+	penalty := r.Total * lateSleepPenaltyRate
 	var stats model.UserStats
 	db.First(&stats)
 	stats.SpendableExp -= penalty
@@ -421,7 +453,7 @@ func BackfillPenaltyExp(db *gorm.DB) gin.HandlerFunc {
 				continue
 			}
 
-			// 历史任务积分是满额发的（未被实时惩罚），补算 20%
+			// 历史任务积分是满额发的（未被实时惩罚），按当时的 20% 补算（不跟随现行 lateSleepPenaltyRate）
 			penalty := r.Total * 0.2
 			db.Model(&sl).Update("penalty_exp", penalty)
 			updated++
@@ -496,7 +528,78 @@ func applyDurationBonus(db *gorm.DB, duration float64, date string) float64 {
 	return bonus
 }
 
-// refundStats 退还积分到 UserStats
+// applyWakeBonus 实际起床时间与固定起床时间相差不超过 wakeBonusToleranceMin 分钟时发奖励，返回发放额
+func applyWakeBonus(db *gorm.DB, wakeTime string) float64 {
+	fixed := getConfig(db, fixedWakeConfigKey, fixedWakeDefault)
+	diff, ok := clockDiffMinutes(wakeTime, fixed)
+	if !ok || diff > wakeBonusToleranceMin {
+		return 0
+	}
+	grantExp(db, wakeBonusExp)
+	return wakeBonusExp
+}
+
+// clockDiffMinutes 两个 HH:MM 的分钟差绝对值。起床时间都在白天，不考虑跨午夜。
+func clockDiffMinutes(a, b string) (int, bool) {
+	ta, errA := time.Parse("15:04", a)
+	tb, errB := time.Parse("15:04", b)
+	if errA != nil || errB != nil {
+		return 0, false
+	}
+	d := int(ta.Sub(tb).Minutes())
+	if d < 0 {
+		d = -d
+	}
+	return d, true
+}
+
+// fillSleepMinutes 只补 / 更新睡眠效率数据，不动时间和积分
+func fillSleepMinutes(db *gorm.DB, log *model.SleepLog, asleep, awake int) {
+	if asleep <= 0 || (log.AsleepMinutes == asleep && log.AwakeMinutes == awake) {
+		return
+	}
+	log.AsleepMinutes = asleep
+	log.AwakeMinutes = awake
+	db.Model(log).Updates(map[string]any{"asleep_minutes": asleep, "awake_minutes": awake})
+}
+
+// grantExp 发放一笔正向奖励：计入总经验；有进行中的心愿时优先注入心愿池，剩下的进可用积分
+func grantExp(db *gorm.DB, amount float64) {
+	if amount <= 0 {
+		return
+	}
+	var stats model.UserStats
+	db.First(&stats)
+	stats.TotalExp += amount
+	routed := contributeActiveWish(db, amount)
+	stats.SpendableExp += amount - routed
+	stats.Level = calcLevel(stats.TotalExp)
+	db.Save(&stats)
+}
+
+// revertAward 撤销一笔已发放的奖惩：正数（曾加分）扣回，负数（曾扣分）补回。
+// 以前这里误用了 refundStats（只会加分、且遇到负数直接返回），导致编辑 / 删除 / 同步更新时
+// 正奖励被重复发放、负奖励永远补不回来。
+// 边界：当初若有部分注入了心愿池，这里统一从可用积分扣回，不回滚心愿进度。
+func revertAward(db *gorm.DB, amount float64) {
+	if amount == 0 {
+		return
+	}
+	var stats model.UserStats
+	db.First(&stats)
+	stats.TotalExp -= amount
+	stats.SpendableExp -= amount
+	if stats.TotalExp < 0 {
+		stats.TotalExp = 0
+	}
+	if stats.SpendableExp < 0 {
+		stats.SpendableExp = 0
+	}
+	stats.Level = calcLevel(stats.TotalExp)
+	db.Save(&stats)
+}
+
+// refundStats 退还积分到 UserStats（只用于退还晚睡扣分 PenaltyExp，它是正数的扣除额）
 func refundStats(db *gorm.DB, amount float64) {
 	if amount <= 0 {
 		return
