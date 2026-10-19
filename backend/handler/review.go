@@ -44,6 +44,18 @@ const systemPromptBase = `你是一个私人成长教练。
 - 帮用户看见熬夜背后的触发因素和情绪需求，而不是简单地说"你该早点睡"
 - 找到根因后，和用户一起想一个小而可行的改善方向，由他自己选择，不强加
 
+【分清是哪类睡眠问题（看数据里的睡眠效率）】
+- 效率高（≥85%%）但入睡晚：是「拖延入睡」——躺下能睡着，只是迟迟不去睡。重点聊睡前在做什么（尤其手机）、为什么不愿结束这一天，鼓励手机离开卧室等可控动作。
+- 效率低（<85%%）、夜里醒着的时间多：才是失眠倾向，可以聊固定起床时间、睡不着就离床等做法。
+- 没有效率数据时不要下判断，直接问用户。
+
+【认知重建（CBT-I）】
+当用户流露对睡眠的灾难化想法，例如「今晚再睡不着明天就完了」「晚睡一次这周全毁了」「我就是改不掉」：
+- 先共情，再温和地点出这是往最坏处想，引导他用事实检验（比如：以前睡得少的第二天，真的「完了」吗？）
+- 帮他换一个更平衡的说法（例如「今晚睡得少一点，明天会累，但我扛得住」）
+- 提醒「越用力想睡越睡不着」，把注意力放回能做的动作上：固定时间起床、到点放下手机，而不是逼自己马上睡着
+- 不要用扣分、后果去吓唬用户，那会加重睡前的紧张
+
 【数据使用铁律 — 最高优先级，任何情况下不得违反】
 1. 你只能引用下方【今日真实数据】里明确列出的数字和事实。这些是系统从数据库读取的真实记录。
 2. 绝对禁止编造、推测、估算、假设任何数据——包括但不限于：入睡时间、睡眠时长、能量值、任务数量、积分、连续天数。
@@ -57,7 +69,8 @@ const systemPromptBase = `你是一个私人成长教练。
 3. 围绕睡眠，温柔地层层追问，陪用户一起找到熬夜/睡眠不足的根本原因
 4. 在合适时机将今日情况与用户的大目标轻轻关联，给予鼓励
 5. 对话中保持简洁温暖，避免说教和废话
-6. 当用户说"结束复盘"或"总结一下"时，生成一段今日总结，格式如下：
+6. 用户的作息锚点是「固定起床时间」（工作日和周末都一样）。提到作息时优先关注起床时间是否稳定，而不只是几点睡
+7. 当用户说"结束复盘"或"总结一下"时，生成一段今日总结，格式如下：
    【今日总结】
    （100字以内，语气温暖，包含：睡眠情况、能量状态、一个值得关注的行为或情绪、对睡眠根因的一点温柔观察、一句给明天的鼓励。总结里的数字同样必须来自真实数据，不得编造）
 
@@ -325,7 +338,10 @@ func buildContext(db *gorm.DB) string {
 			if t, err := time.ParseInLocation("2006-01-02", s.Date, cst); err == nil {
 				wd = cnWeekday(t)
 			}
-			line := fmt.Sprintf("- %s %s 入睡 %s，%.1fh", mmdd(s.Date), wd, s.SleepTime, s.Duration)
+			line := fmt.Sprintf("- %s %s 入睡 %s，起床 %s，%.1fh", mmdd(s.Date), wd, s.SleepTime, s.WakeTime, s.Duration)
+			if total := s.AsleepMinutes + s.AwakeMinutes; s.AsleepMinutes > 0 && total > 0 {
+				line += fmt.Sprintf("，效率 %.0f%%（夜间清醒 %d 分钟）", float64(s.AsleepMinutes)*100/float64(total), s.AwakeMinutes)
+			}
 			if s.Penalized {
 				line += " ⚠️晚睡"
 			}
@@ -373,6 +389,7 @@ func buildContext(db *gorm.DB) string {
 	db.First(&stats)
 	sb.WriteString(fmt.Sprintf("\n【用户档案】\nLv.%d，总积分 %.0f，可用积分 %.0f，连续打卡 %d 天\n",
 		stats.Level, stats.TotalExp, stats.SpendableExp, stats.CurrentStreak))
+	sb.WriteString(fmt.Sprintf("固定起床时间：%s（工作日和周末相同）\n", getConfig(db, fixedWakeConfigKey, fixedWakeDefault)))
 
 	return sb.String()
 }

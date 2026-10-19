@@ -135,3 +135,10 @@ export const getUserConfig = (key: string) =>
   http.get<{ key: string; value: string }, { key: string; value: string }>(`/config/${key}`)
 export const setUserConfig = (key: string, value: string) =>
   http.put<{ key: string; value: string }, { key: string; value: string }>(`/config/${key}`, { value })
+
+// 睡前锚点打卡（night = 这一晚的日期，凌晨 6 点前算前一晚）
+export type WindDownChecksResp = { keys: string[]; exp_delta?: number }
+export const getWindDownChecks = (night: string) =>
+  http.get<WindDownChecksResp, WindDownChecksResp>('/wind-down/checks', { params: { night } })
+export const setWindDownCheck = (night: string, stepKey: string, checked: boolean) =>
+  http.post<WindDownChecksResp, WindDownChecksResp>('/wind-down/checks', { night_date: night, step_key: stepKey, checked })

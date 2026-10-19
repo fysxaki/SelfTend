@@ -39,8 +39,10 @@ import {
   deleteSleepLog,
   getSleepLogs,
   getUserConfig,
+  getWindDownChecks,
   getWorries,
   setUserConfig,
+  setWindDownCheck,
   updateSleepLog,
 } from '@/api'
 import { FloatingDecorations } from '@/components/Decorations'
@@ -53,12 +55,18 @@ const { Text } = Typography
 // 和生物钟节律的标准窗口；短于此易受单次熬夜干扰，长于此对作息改善反应迟钝。
 const STATS_WINDOW_DAYS = 14
 
-// 「今晚建议入睡」分两套，依据明天（起床那天）是否工作日：
-// - 工作日：按配置的固定起床时间倒推（用 chinese-days 判断，含调休）
-// - 休息日/节假日：沿用习惯窗口逻辑（近 14 天平均入睡 − 20min，下限 22:40）
-// 工作日起床时间存后端 UserConfig，通勤变化时在卡片上直接改，不用改代码。
-const WORKDAY_WAKE_CONFIG_KEY = 'workday_wake'
-const WORKDAY_WAKE_DEFAULT = '07:35'
+// 「今晚建议入睡」= 固定起床时间 − 预计睡眠时长。
+// CBT-I 最核心的一条是「固定起床时间，周末也一样」，所以工作日和休息日共用同一个起床时间；
+// 休息日想晚点睡可以点「放纵一下」，但它只把上床时间往后推，不改起床时间。
+// 固定起床时间存后端 UserConfig（key 名带 workday 是历史原因，后端 fixedWakeConfigKey 同名）。
+const FIXED_WAKE_CONFIG_KEY = 'workday_wake'
+const FIXED_WAKE_DEFAULT = '07:35'
+// 睡眠效率 = 实际睡着 / (睡着 + 夜间清醒)，CBT-I 以 85% 为达标线。
+// 近 14 天有效数据 ≥ 5 晚且效率低于 85% 时，切到「睡眠限制」：在床时间先压到实际睡眠 + 30 分钟，
+// 但不少于 5.5 小时；效率回升后自动退出。效率高就说明是拖延入睡，走正常逻辑。
+const EFFICIENCY_TARGET = 0.85
+const EFFICIENCY_MIN_NIGHTS = 5
+const RESTRICT_MIN_WINDOW_MINUTES = 330
 // 预计睡眠时长默认 8h（最少 8h，最多 9h）；晚睡多时可在卡片上调 +0.5h / +1h
 const SLEEP_GOAL_MIN = '08:00'
 // Garmin 的「下次睡眠建议时长」由 garmin_sync.py 写入后端 UserConfig（key 与后端 SleepNeedConfigKey 一致）。
@@ -105,22 +113,8 @@ function parseWindDownSteps(raw: string): WindDownStep[] {
   }
 }
 
-const WIND_DOWN_STORAGE_KEY = 'selftend_wind_down'
-
-function loadWindDownChecks(today: string): Record<string, boolean> {
-  try {
-    const raw = localStorage.getItem(WIND_DOWN_STORAGE_KEY)
-    if (!raw) return {}
-    const { date, checks } = JSON.parse(raw)
-    return date === today ? checks : {}
-  } catch {
-    return {}
-  }
-}
-
-function saveWindDownChecks(today: string, checks: Record<string, boolean>) {
-  localStorage.setItem(WIND_DOWN_STORAGE_KEY, JSON.stringify({ date: today, checks }))
-}
+// 每完成一个锚点发的积分，与后端 windDownStepExp 一致（仅用于展示）
+const WIND_DOWN_STEP_EXP = 5
 
 export default function SleepPage() {
   const { fetchStats } = useAppStore()
@@ -134,16 +128,17 @@ export default function SleepPage() {
   const [sleepGoal, setSleepGoal] = useState<dayjs.Dayjs>(dayjs(SLEEP_GOAL_MIN, 'HH:mm'))
   // 休息日「放纵一下」：开启后不按睡够时长倒推，改用宽松的习惯窗口（平均入睡 −20min）
   const [indulge, setIndulge] = useState(false)
-  // 工作日起床时间（可配置，存后端）
-  const [workdayWake, setWorkdayWake] = useState(WORKDAY_WAKE_DEFAULT)
+  // 固定起床时间（工作日 / 休息日共用，存后端）
+  const [fixedWake, setFixedWake] = useState(FIXED_WAKE_DEFAULT)
   // Garmin 建议的下次睡眠时长（分钟），仅用于展示原始建议；超出 8~9h 会被 clamp 后填入 sleepGoal
   const [garminNeedMinutes, setGarminNeedMinutes] = useState<number | null>(null)
   // 手机壁纸视图（19.8:9 竖版，可一键导出 PNG 设为锁屏壁纸）
   const [wallpaperOpen, setWallpaperOpen] = useState(false)
   const wallpaperCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  // 睡前倒计时：今晚各锚点的打卡状态（本地存储，跨日自动清空）
-  const todayForWindDown = dayjs().format('YYYY-MM-DD')
-  const [windDownChecks, setWindDownChecks] = useState<Record<string, boolean>>(() => loadWindDownChecks(todayForWindDown))
+  // 睡前倒计时：今晚已打卡的锚点。打卡会发积分，所以存后端，不能只存浏览器。
+  // 凌晨 6 点前算前一晚，避免目标入睡在 0 点后时，同一晚的打卡被拆到两天
+  const windDownNight = dayjs().subtract(6, 'hour').format('YYYY-MM-DD')
+  const [windDownChecked, setWindDownChecked] = useState<Set<string>>(new Set())
   const [dueWorryCount, setDueWorryCount] = useState(0)
   // 锚点配置：从后端加载，用户自己在「配置」弹窗里增删改
   const [windDownSteps, setWindDownSteps] = useState<WindDownStep[]>(DEFAULT_WIND_DOWN_STEPS)
@@ -154,8 +149,8 @@ export default function SleepPage() {
   useEffect(() => {
     getWorries('due').then((list) => setDueWorryCount(list?.length ?? 0)).catch(() => {})
     getUserConfig(WIND_DOWN_CONFIG_KEY).then((resp) => setWindDownSteps(parseWindDownSteps(resp.value))).catch(() => {})
-    getUserConfig(WORKDAY_WAKE_CONFIG_KEY)
-      .then((resp) => { if (/^\d{2}:\d{2}$/.test(resp.value)) setWorkdayWake(resp.value) })
+    getUserConfig(FIXED_WAKE_CONFIG_KEY)
+      .then((resp) => { if (/^\d{2}:\d{2}$/.test(resp.value)) setFixedWake(resp.value) })
       .catch(() => {})
     // Garmin 建议睡眠时长：只认「明天起床那天」的建议，过期的不用（避免拿昨天的数据倒推今晚）
     getUserConfig(GARMIN_SLEEP_NEED_CONFIG_KEY)
@@ -170,24 +165,36 @@ export default function SleepPage() {
       .catch(() => {})
   }, [])
 
-  // 改工作日起床时间：先更新界面，再落库；失败时提示但不回滚（下次进页面会读回真实值）
-  const handleWorkdayWakeChange = async (v: dayjs.Dayjs | null) => {
+  // 跨过早上 6 点即换到新的一晚，重新拉这一晚的打卡状态
+  useEffect(() => {
+    getWindDownChecks(windDownNight).then((resp) => setWindDownChecked(new Set(resp.keys))).catch(() => {})
+  }, [windDownNight])
+
+  // 改固定起床时间：先更新界面，再落库；失败时提示但不回滚（下次进页面会读回真实值）
+  const handleFixedWakeChange = async (v: dayjs.Dayjs | null) => {
     if (!v) return
     const next = v.format('HH:mm')
-    setWorkdayWake(next)
+    setFixedWake(next)
     try {
-      await setUserConfig(WORKDAY_WAKE_CONFIG_KEY, next)
+      await setUserConfig(FIXED_WAKE_CONFIG_KEY, next)
     } catch {
       message.error('起床时间保存失败')
     }
   }
 
-  const toggleWindDownStep = (key: string) => {
-    setWindDownChecks((prev) => {
-      const next = { ...prev, [key]: !prev[key] }
-      saveWindDownChecks(todayForWindDown, next)
-      return next
-    })
+  // 锚点打卡：以后端返回的已打卡列表为准，积分变动后刷新顶部统计
+  const toggleWindDownStep = async (key: string) => {
+    const checked = !windDownChecked.has(key)
+    try {
+      const resp = await setWindDownCheck(windDownNight, key, checked)
+      setWindDownChecked(new Set(resp.keys))
+      if (resp.exp_delta) {
+        message.success(resp.exp_delta > 0 ? `+${resp.exp_delta} 积分` : `已撤销 ${resp.exp_delta} 积分`)
+        fetchStats()
+      }
+    } catch {
+      message.error('打卡失败，请重试')
+    }
   }
 
   const openWindDownConfig = () => {
@@ -295,7 +302,7 @@ export default function SleepPage() {
           if (log.penalty_exp > 0)
             parts.push(`🌙 入睡偏晚，扣了 ${log.penalty_exp.toFixed(1)} 分，今晚早点休息`)
           else if (isToday)
-            parts.push(`🌙 晚睡惩罚已激活，今日任务奖励将打八折`)
+            parts.push(`🌙 晚睡惩罚已激活，今日任务奖励将打九折`)
           else
             parts.push(`🌙 ${dateLabel} 晚睡已记录`)
         }
@@ -303,6 +310,8 @@ export default function SleepPage() {
           parts.push(`🎉 ${dateLabel}睡眠奖励 +${log.bonus_exp.toFixed(0)} 分`)
         if (log.bonus_exp < 0)
           parts.push(`💤 ${dateLabel}睡眠时长偏短，扣 ${Math.abs(log.bonus_exp).toFixed(1)} 分`)
+        if (log.wake_bonus_exp > 0)
+          parts.push(`⏰ 按固定时间起床 +${log.wake_bonus_exp.toFixed(0)} 分`)
         if (parts.length > 0) {
           message.warning(parts.join('　'), 5)
         } else {
@@ -339,7 +348,7 @@ export default function SleepPage() {
     if (recent.length === 0) {
       return {
         avgSleepTime: null, avgDurationH: 0, recommended: null, recommendedFloored: false,
-        avgWakeTime: null, count: 0,
+        avgWakeTime: null, count: 0, efficiency: null, avgAsleepMinutes: null, efficiencyNights: 0,
       }
     }
     const avgSleepTime = avgClockTime(recent.map((l) => l.sleep_time))
@@ -350,27 +359,35 @@ export default function SleepPage() {
     // 起床时间都在 06:00-12:00 之间，不会跨午夜，直接均值
     const wakeTimes = recent.filter((l) => l.wake_time).map((l) => l.wake_time as string)
     const avgWakeTime = wakeTimes.length > 0 ? avgClockTimeSimple(wakeTimes) : null
+    // 睡眠效率：只算有 Garmin 数据的晚上；按总量算比值（不是各晚效率取平均），避免短觉权重过大
+    const effLogs = recent.filter((l) => l.asleep_minutes > 0)
+    const asleepSum = effLogs.reduce((a, l) => a + l.asleep_minutes, 0)
+    const inBedSum = effLogs.reduce((a, l) => a + l.asleep_minutes + l.awake_minutes, 0)
     return {
       avgSleepTime, avgDurationH, recommended, recommendedFloored,
       avgWakeTime, count: recent.length,
+      efficiency: inBedSum > 0 ? asleepSum / inBedSum : null,
+      avgAsleepMinutes: effLogs.length > 0 ? asleepSum / effLogs.length : null,
+      efficiencyNights: effLogs.length,
     }
   }, [logs])
 
-  // 明天（起床那天）是否工作日 → 决定用哪个起床时间倒推
+  // 明天（起床那天）是否工作日：只影响文案和「放纵一下」入口，起床时间每天固定
   const tomorrowIsWorkday = isWorkday(dayjs().add(1, 'day').format('YYYY-MM-DD'))
-  // 默认都是「起床时间 − 预计睡眠时长」，只是起床时间来源不同：
-  // - 工作日：固定 07:35
-  // - 休息日：近 14 天平均起床时间
-  // 休息日额外提供「放纵一下」开关：切回宽松的习惯窗口逻辑（平均入睡 −20min），
-  // 没有历史起床数据时也自动走这条。
   const goalMinutes = sleepGoal.hour() * 60 + sleepGoal.minute()
-  const restWake = recentStats.avgWakeTime
-  const restUseLoose = indulge || !restWake
-  const recommendedSleep = tomorrowIsWorkday
-    ? shiftClockMinutes(workdayWake, -goalMinutes)
-    : restUseLoose
-      ? recentStats.recommended
-      : shiftClockMinutes(restWake!, -goalMinutes)
+  // 放纵：仅休息日可用，改用习惯窗口（平均入睡 −20min）；没有历史数据时无从放纵，回到正常逻辑
+  const indulgeActive = !tomorrowIsWorkday && indulge && !!recentStats.recommended
+  // 睡眠限制：效率数据够多且低于 85% 才进入，说明在床上醒着的时间太多
+  const restrictActive = !indulgeActive
+    && recentStats.efficiencyNights >= EFFICIENCY_MIN_NIGHTS
+    && recentStats.efficiency !== null
+    && recentStats.efficiency < EFFICIENCY_TARGET
+  const restrictWindowMinutes = recentStats.avgAsleepMinutes !== null
+    ? Math.max(RESTRICT_MIN_WINDOW_MINUTES, Math.round((recentStats.avgAsleepMinutes + 30) / 5) * 5)
+    : RESTRICT_MIN_WINDOW_MINUTES
+  const recommendedSleep = indulgeActive
+    ? recentStats.recommended
+    : shiftClockMinutes(fixedWake, -(restrictActive ? restrictWindowMinutes : goalMinutes))
 
   // 睡前倒计时的各锚点时间 = 目标入睡时间往前推 offsetMin 分钟，按 offsetMin 从大到小排（离目标最远的在最前）
   const windDownAnchors = useMemo(() => {
@@ -417,11 +434,21 @@ export default function SleepPage() {
       title: '睡眠时长',
       dataIndex: 'duration',
       key: 'duration',
-      render: (d: number) => {
+      render: (d: number, record: SleepLog) => {
         const h = Math.floor(d)
         const m = Math.round((d - h) * 60)
         const color = d >= 7 ? '#22c55e' : d >= 6 ? '#f59e0b' : '#ef4444'
-        return <Text style={{ color, fontWeight: 600 }}>{h}h {m}m</Text>
+        const inBed = record.asleep_minutes + record.awake_minutes
+        return (
+          <div>
+            <Text style={{ color, fontWeight: 600 }}>{h}h {m}m</Text>
+            {record.asleep_minutes > 0 && inBed > 0 && (
+              <div style={{ fontSize: 11, color: '#9ca3af' }}>
+                效率 {Math.round((record.asleep_minutes / inBed) * 100)}%
+              </div>
+            )}
+          </div>
+        )
       },
     },
     {
@@ -442,6 +469,8 @@ export default function SleepPage() {
           lines.push(<div key="bonus" style={{ color: '#22c55e', fontSize: 12 }}>⏰ 时长 +{record.bonus_exp.toFixed(0)}</div>)
         if (record.bonus_exp < 0)
           lines.push(<div key="short" style={{ color: '#ef4444', fontSize: 12 }}>😴 不足6h -{Math.abs(record.bonus_exp).toFixed(1)}</div>)
+        if (record.wake_bonus_exp > 0)
+          lines.push(<div key="wake" style={{ color: '#22c55e', fontSize: 12 }}>🌅 准时起床 +{record.wake_bonus_exp.toFixed(0)}</div>)
         return lines.length > 0 ? <>{lines}</> : <Text style={{ color: '#22c55e', fontSize: 12 }}>无</Text>
       },
     },
@@ -481,7 +510,7 @@ export default function SleepPage() {
             <span className="font-script" style={{ fontSize: 26, color: '#6ba39d' }}>Sleep</span>
           </div>
           <Text type="secondary" style={{ fontSize: 13 }}>
-            超过 01:30 入睡扣20% · &lt;6h 扣20% · 6→8h 线性 0~+52（≥8h 封顶）
+            超过 01:30 入睡扣10% · &lt;6h 扣20% · 6→8h 线性 0~+52 · 固定时间起床 +10 · 睡前锚点每项 +{WIND_DOWN_STEP_EXP}
           </Text>
         </div>
         <Button
@@ -510,7 +539,7 @@ export default function SleepPage() {
                 <Text style={{ color: '#92400e' }}>
                   昨晚 {todayLog.sleep_time} 才入睡，{todayLog.penalty_exp > 0
                     ? <>轻轻扣了 <strong>{todayLog.penalty_exp.toFixed(1)}</strong> 分——今晚试试早点躺下？</>
-                    : '晚睡惩罚已激活，今日任务奖励将打八折'}
+                    : '晚睡惩罚已激活，今日任务奖励将打九折'}
                 </Text>
               </Space>
             )}
@@ -561,6 +590,14 @@ export default function SleepPage() {
                   fontSize: 22, fontWeight: 700,
                 }}
               />
+              {recentStats.efficiency !== null && (
+                <Tooltip title="实际睡着时间 ÷ 睡眠窗口。85% 以上说明躺下能睡着，晚睡是拖延入睡；低于 85% 才是夜里醒着太多。Garmin 不记录躺下到睡着那段，所以反映不了入睡困难。">
+                  <div style={{ marginTop: 6, fontSize: 12, color: recentStats.efficiency >= EFFICIENCY_TARGET ? '#16a34a' : '#d97706' }}>
+                    睡眠效率 {Math.round(recentStats.efficiency * 100)}%
+                    <span style={{ color: '#9ca3af' }}>（{recentStats.efficiencyNights} 晚）</span>
+                  </div>
+                </Tooltip>
+              )}
             </Card>
           </Col>
           <Col xs={24} sm={8}>
@@ -574,23 +611,21 @@ export default function SleepPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                 <Statistic
                   title={<span style={{ fontSize: 12, color: '#3d6d68' }}>
-                    💡 今晚建议入睡{tomorrowIsWorkday
-                      ? `（工作日 · 起床 ${workdayWake}）`
-                      : indulge
-                        ? '（休息日 · 放纵中）'
-                        : restWake
-                          ? `（休息日 · 起床 ${restWake}）`
-                          : '（休息日 · 提前 20 分钟）'}
+                    💡 今晚建议入睡（{tomorrowIsWorkday ? '工作日' : '休息日'}{indulgeActive
+                      ? ' · 放纵中'
+                      : restrictActive
+                        ? ' · 睡眠限制'
+                        : ` · 起床 ${fixedWake}`}）
                   </span>}
                   value={recommendedSleep ?? '—'}
                   valueStyle={{
-                    color: indulge && !tomorrowIsWorkday ? '#c2410c' : '#3d6d68',
+                    color: indulgeActive ? '#c2410c' : '#3d6d68',
                     fontSize: 22, fontWeight: 700,
                   }}
                 />
                 {/* 休息日专属：放纵一下 —— 不按睡够时长倒推，改用宽松的习惯窗口 */}
                 {!tomorrowIsWorkday && (
-                  <Tooltip title={indulge ? '点一下回到「睡够时长」模式' : '明天不上班，按平时习惯就好（平均入睡 −20min）'}>
+                  <Tooltip title={indulge ? '点一下回到「睡够时长」模式' : '明天不上班，按平时习惯晚点睡（平均入睡 −20min）。起床时间仍然不变'}>
                     <Button
                       size="small"
                       onClick={() => setIndulge((v) => !v)}
@@ -606,25 +641,25 @@ export default function SleepPage() {
                   </Tooltip>
                 )}
               </div>
-              {/* 工作日起床时间：可配置，改完即存后端（搬家/换通勤时直接在这里调） */}
-              {tomorrowIsWorkday && (
-                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 12, color: '#3d6d68' }}>起&nbsp;&nbsp;床</span>
-                  <TimePicker
-                    value={dayjs(workdayWake, 'HH:mm')}
-                    onChange={handleWorkdayWakeChange}
-                    format="HH:mm"
-                    minuteStep={5}
-                    allowClear={false}
-                    needConfirm={false}
-                    inputReadOnly
-                    size="small"
-                    style={{ width: 96 }}
-                  />
-                </div>
-              )}
+              {/* 固定起床时间：工作日和休息日共用，改完即存后端（搬家 / 换通勤时直接在这里调） */}
+              <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Tooltip title="每天同一时间起床（周末也一样）是调整作息最关键的一步。与它相差 30 分钟以内起床，+10 积分">
+                  <span style={{ fontSize: 12, color: '#3d6d68' }}>固定起床</span>
+                </Tooltip>
+                <TimePicker
+                  value={dayjs(fixedWake, 'HH:mm')}
+                  onChange={handleFixedWakeChange}
+                  format="HH:mm"
+                  minuteStep={5}
+                  allowClear={false}
+                  needConfirm={false}
+                  inputReadOnly
+                  size="small"
+                  style={{ width: 96 }}
+                />
+              </div>
               {/* 预计睡眠时长：仅在「睡够时长」模式下有意义，限制 8h ~ 9h */}
-              {(tomorrowIsWorkday || (restWake && !indulge)) && (
+              {!indulgeActive && !restrictActive && (
                 <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 12, color: '#3d6d68' }}>预计睡</span>
                   <TimePicker
@@ -652,6 +687,12 @@ export default function SleepPage() {
                   )}
                 </div>
               )}
+              {restrictActive && recentStats.efficiency !== null && (
+                <div style={{ marginTop: 8, fontSize: 11, color: '#92400e', lineHeight: 1.6 }}>
+                  近 {recentStats.efficiencyNights} 晚睡眠效率 {Math.round(recentStats.efficiency * 100)}%，低于 85%。
+                  先把在床时间压到实际睡眠 + 30 分钟（{formatDuration(restrictWindowMinutes / 60)}），效率回升后自动恢复。
+                </div>
+              )}
             </Card>
           </Col>
         </Row>
@@ -665,6 +706,9 @@ export default function SleepPage() {
           title={
             <span style={{ fontSize: 13, fontWeight: 600, color: '#3d6d68' }}>
               🌙 今晚倒计时 · 目标 {recommendedSleep}
+              <span style={{ fontSize: 11, fontWeight: 400, color: '#9ca3af', marginLeft: 8 }}>
+                每完成一项 +{WIND_DOWN_STEP_EXP}
+              </span>
             </span>
           }
           extra={
@@ -680,7 +724,7 @@ export default function SleepPage() {
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {windDownAnchors.map((step) => {
-              const checked = !!windDownChecks[step.key]
+              const checked = windDownChecked.has(step.key)
               const isWorryStep = step.label.includes('焦虑') || step.hint.includes('焦虑')
               return (
                 <div
@@ -721,9 +765,16 @@ export default function SleepPage() {
                       {dueWorryCount} 条待处理 →
                     </Link>
                   )}
+                  {!checked && (
+                    <span style={{ fontSize: 11, color: '#6ba39d', flexShrink: 0 }}>+{WIND_DOWN_STEP_EXP}</span>
+                  )}
                 </div>
               )
             })}
+          </div>
+          {/* CBT-I 刺激控制：越用力想睡越睡不着，睡不着就离床，让「床」重新只和睡觉绑定 */}
+          <div style={{ marginTop: 10, fontSize: 11, color: '#9ca3af', lineHeight: 1.6 }}>
+            💡 躺下 20 分钟还没睡着，就起身去光线暗的地方做点单调的事，有困意再回床。
           </div>
         </Card>
       )}
@@ -755,7 +806,7 @@ export default function SleepPage() {
             anchors={windDownAnchors}
             targetTime={recommendedSleep}
             isWorkday={tomorrowIsWorkday}
-            wakeTime={workdayWake}
+            wakeTime={fixedWake}
           />
         </div>
 
@@ -960,7 +1011,7 @@ function drawWallpaper(
 
   setFont(30, 400, 0)
   ctx.fillStyle = '#5d8f89'
-  ctx.fillText(workday ? `明天上班 · 起床 ${wakeTime}` : '休息日', WP_W / 2, y)
+  ctx.fillText(`${workday ? '明天上班' : '明天休息'} · ${wakeTime} 起床`, WP_W / 2, y)
   y += 30 + 110
 
   // 锚点列表：图标 / 时间 / 文案 三列
@@ -1004,6 +1055,11 @@ function drawWallpaper(
   setFont(26, 400, 4)
   ctx.fillStyle = '#3f6b66'
   ctx.fillText('SelfTend', WP_W / 2, WP_H - 120 - 26)
+
+  // 20 分钟规则：放在底部标识上方，避开解锁手势区
+  setFont(30, 400, 0)
+  ctx.fillStyle = '#5d8f89'
+  ctx.fillText('躺下 20 分钟睡不着，就起身做点单调的事', WP_W / 2, WP_H - 120 - 26 - 80)
 }
 
 function WallpaperCanvas({

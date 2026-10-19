@@ -35,12 +35,12 @@ func CompleteTask(db *gorm.DB) gin.HandlerFunc {
 			exp = req.ExpOverride
 		}
 
-		// 实时检查今日晚睡惩罚标记，有则本次积分 ×0.8
+		// 实时检查今日晚睡惩罚标记，有则本次积分按 lateSleepPenaltyRate 打折
 		penaltyApplied := TodaySleepPenalty(db)
 		var penaltyAmount float64
 		if penaltyApplied {
-			penaltyAmount = exp * 0.2
-			exp = exp * 0.8
+			penaltyAmount = exp * lateSleepPenaltyRate
+			exp -= penaltyAmount
 		}
 
 		taskLog := model.TaskLog{

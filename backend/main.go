@@ -37,6 +37,7 @@ func main() {
 		&model.UserConfig{},
 		&model.WorryNote{},
 		&model.Wish{},
+		&model.WindDownCheck{},
 	)
 
 	// 仅初始化 UserStats（业务必须存在的系统记录）
@@ -132,6 +133,10 @@ func main() {
 		// 通用用户配置（key-value，如睡前倒计时锚点）
 		api.GET("/config/:key", handler.GetUserConfig(db))
 		api.PUT("/config/:key", handler.SetUserConfig(db))
+
+		// 睡前锚点打卡（打卡发积分，取消撤销）
+		api.GET("/wind-down/checks", handler.GetWindDownChecks(db))
+		api.POST("/wind-down/checks", handler.SetWindDownCheck(db))
 	}
 
 	log.Println("Server running on :8080")
