@@ -94,6 +94,19 @@ systemctl list-timers selftend-garmin-sync
 - 扩大窗口：`--backfill-days 14`（上限 30）
 - 已有手动记录的日子不算缺口，不会被自动同步覆盖
 
+## 睡眠效率
+
+脚本会顺带上报 Garmin 的实际睡着时长和夜间清醒时长，前端据此计算**睡眠效率**
+（实际睡着 ÷ 睡眠窗口，85% 为达标线）。手动记录不会被改时间和积分，但会补上效率数据。
+
+升级后，历史记录还没有效率数据，跑一次回填即可（时间没变的记录不会改动积分）：
+
+```bash
+./.venv/bin/python garmin_sync.py --refill-days 14
+```
+
+注意 Garmin 的睡眠窗口从「检测到睡着」开始，不含躺下到睡着那段，所以这个效率只反映夜里醒来的情况。
+
 ## 注意
 
 - **佳明中国账号**：Garmin 中国 App（connect.garmin.cn）注册的账号，在 `.env` 设 `GARMIN_IS_CN=true`；国际版留 false。
