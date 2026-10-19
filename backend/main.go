@@ -38,6 +38,7 @@ func main() {
 		&model.WorryNote{},
 		&model.Wish{},
 		&model.WindDownCheck{},
+		&model.LightsOutLog{},
 	)
 
 	// 仅初始化 UserStats（业务必须存在的系统记录）
@@ -137,6 +138,11 @@ func main() {
 		// 睡前锚点打卡（打卡发积分，取消撤销）
 		api.GET("/wind-down/checks", handler.GetWindDownChecks(db))
 		api.POST("/wind-down/checks", handler.SetWindDownCheck(db))
+
+		// 关灯打卡（测量入睡耗时，不发积分）
+		api.GET("/lights-out", handler.GetLightsOut(db))
+		api.PUT("/lights-out", handler.SetLightsOut(db))
+		api.DELETE("/lights-out/:night", handler.DeleteLightsOut(db))
 	}
 
 	log.Println("Server running on :8080")

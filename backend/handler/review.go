@@ -47,6 +47,7 @@ const systemPromptBase = `你是一个私人成长教练。
 【分清是哪类睡眠问题（看数据里的睡眠效率）】
 - 效率高（≥85%%）但入睡晚：是「拖延入睡」——躺下能睡着，只是迟迟不去睡。重点聊睡前在做什么（尤其手机）、为什么不愿结束这一天，鼓励手机离开卧室等可控动作。
 - 效率低（<85%%）、夜里醒着的时间多：才是失眠倾向，可以聊固定起床时间、睡不着就离床等做法。
+- 有「入睡耗时」时一并参考：关灯后 30 分钟以上才睡着，说明不只是拖延，还有入睡困难（睡前刷手机带来的亢奋也会拉长它）。
 - 没有效率数据时不要下判断，直接问用户。
 
 【认知重建（CBT-I）】
@@ -331,6 +332,14 @@ func buildContext(db *gorm.DB) string {
 	if len(sleepLogs) == 0 {
 		sb.WriteString("- 这段时间没有睡眠记录\n")
 	} else {
+		// 关灯记录挂在「前一晚」：睡眠记录日期是起床那天，关灯是在前一天晚上
+		lightsOut := map[string]string{}
+		var loLogs []model.LightsOutLog
+		db.Where("night_date >= ?", now.AddDate(0, 0, -reviewWindowDays).Format("2006-01-02")).Find(&loLogs)
+		for _, l := range loLogs {
+			lightsOut[l.NightDate] = l.Time
+		}
+
 		var sum float64
 		for _, s := range sleepLogs {
 			sum += s.Duration
@@ -339,8 +348,17 @@ func buildContext(db *gorm.DB) string {
 				wd = cnWeekday(t)
 			}
 			line := fmt.Sprintf("- %s %s 入睡 %s，起床 %s，%.1fh", mmdd(s.Date), wd, s.SleepTime, s.WakeTime, s.Duration)
-			if total := s.AsleepMinutes + s.AwakeMinutes; s.AsleepMinutes > 0 && total > 0 {
-				line += fmt.Sprintf("，效率 %.0f%%（夜间清醒 %d 分钟）", float64(s.AsleepMinutes)*100/float64(total), s.AwakeMinutes)
+			latency, hasLatency := 0, false
+			if t, err := time.ParseInLocation("2006-01-02", s.Date, cst); err == nil {
+				if lo, ok := lightsOut[t.AddDate(0, 0, -1).Format("2006-01-02")]; ok {
+					if latency, hasLatency = sleepLatencyMinutes(lo, s.SleepTime); hasLatency {
+						line += fmt.Sprintf("，关灯 %s，入睡耗时 %d 分钟", lo, latency)
+					}
+				}
+			}
+			// 有入睡耗时就把它算进在床时间，效率才能反映入睡困难
+			if inBed := latency + s.AsleepMinutes + s.AwakeMinutes; s.AsleepMinutes > 0 && inBed > 0 {
+				line += fmt.Sprintf("，效率 %.0f%%（夜间清醒 %d 分钟）", float64(s.AsleepMinutes)*100/float64(inBed), s.AwakeMinutes)
 			}
 			if s.Penalized {
 				line += " ⚠️晚睡"
