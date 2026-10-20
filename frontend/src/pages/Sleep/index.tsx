@@ -39,15 +39,18 @@ import {
   deleteSleepLog,
   getSleepLogs,
   getUserConfig,
+  deleteLightsOut,
+  getLightsOut,
   getWindDownChecks,
   getWorries,
   setUserConfig,
+  setLightsOut,
   setWindDownCheck,
   updateSleepLog,
 } from '@/api'
 import { FloatingDecorations } from '@/components/Decorations'
 import { useAppStore } from '@/stores/useAppStore'
-import type { SleepLog } from '@/types'
+import type { LightsOutLog, SleepLog } from '@/types'
 
 const { Text } = Typography
 
@@ -139,6 +142,8 @@ export default function SleepPage() {
   // 凌晨 6 点前算前一晚，避免目标入睡在 0 点后时，同一晚的打卡被拆到两天
   const windDownNight = dayjs().subtract(6, 'hour').format('YYYY-MM-DD')
   const [windDownChecked, setWindDownChecked] = useState<Set<string>>(new Set())
+  // 关灯打卡：night_date → 关灯时间。用来和 Garmin 入睡时间相减得到「入睡耗时」
+  const [lightsOutByNight, setLightsOutByNight] = useState<Record<string, string>>({})
   const [dueWorryCount, setDueWorryCount] = useState(0)
   // 锚点配置：从后端加载，用户自己在「配置」弹窗里增删改
   const [windDownSteps, setWindDownSteps] = useState<WindDownStep[]>(DEFAULT_WIND_DOWN_STEPS)
@@ -197,6 +202,34 @@ export default function SleepPage() {
     }
   }
 
+  // 关灯打卡：不发积分，只记录时间。再点「又躺下了」会覆盖成当前时间（按 20 分钟规则起身后重新躺下）
+  const tonightLightsOut = lightsOutByNight[windDownNight] ?? null
+  const saveLightsOut = async (time: string) => {
+    try {
+      await setLightsOut(windDownNight, time)
+      setLightsOutByNight((prev) => ({ ...prev, [windDownNight]: time }))
+      return true
+    } catch {
+      message.error('关灯打卡失败，请重试')
+      return false
+    }
+  }
+  const handleLightsOut = async () => {
+    if (await saveLightsOut(dayjs().format('HH:mm'))) message.success('晚安 🌙 明早同步后会算出你多久睡着')
+  }
+  const handleUndoLightsOut = async () => {
+    try {
+      await deleteLightsOut(windDownNight)
+      setLightsOutByNight((prev) => {
+        const next = { ...prev }
+        delete next[windDownNight]
+        return next
+      })
+    } catch {
+      message.error('撤销失败，请重试')
+    }
+  }
+
   const openWindDownConfig = () => {
     windDownForm.setFieldsValue({ steps: windDownSteps })
     setWindDownConfigOpen(true)
@@ -249,8 +282,12 @@ export default function SleepPage() {
       // 获取最近 30 天记录
       const start = dayjs().subtract(29, 'day').format('YYYY-MM-DD')
       const end = dayjs().format('YYYY-MM-DD')
-      const data = await getSleepLogs({ start_date: start, end_date: end })
+      const [data, lightsOut] = await Promise.all([
+        getSleepLogs({ start_date: start, end_date: end }),
+        getLightsOut({ start_date: dayjs(start).subtract(1, 'day').format('YYYY-MM-DD'), end_date: end }).catch(() => [] as LightsOutLog[]),
+      ])
       setLogs(data || [])
+      setLightsOutByNight(Object.fromEntries((lightsOut || []).map((l) => [l.night_date, l.time])))
     } finally {
       setLoading(false)
     }
@@ -349,6 +386,7 @@ export default function SleepPage() {
       return {
         avgSleepTime: null, avgDurationH: 0, recommended: null, recommendedFloored: false,
         avgWakeTime: null, count: 0, efficiency: null, avgAsleepMinutes: null, efficiencyNights: 0,
+        avgLatency: null, latencyNights: 0,
       }
     }
     const avgSleepTime = avgClockTime(recent.map((l) => l.sleep_time))
@@ -359,18 +397,26 @@ export default function SleepPage() {
     // 起床时间都在 06:00-12:00 之间，不会跨午夜，直接均值
     const wakeTimes = recent.filter((l) => l.wake_time).map((l) => l.wake_time as string)
     const avgWakeTime = wakeTimes.length > 0 ? avgClockTimeSimple(wakeTimes) : null
-    // 睡眠效率：只算有 Garmin 数据的晚上；按总量算比值（不是各晚效率取平均），避免短觉权重过大
+    // 入睡耗时：有关灯打卡的晚上才有
+    const latencies = recent
+      .map((l) => latencyForLog(l, lightsOutByNight))
+      .filter((v): v is number => v !== null)
+    // 睡眠效率：只算有 Garmin 数据的晚上；按总量算比值（不是各晚效率取平均），避免短觉权重过大。
+    // 有入睡耗时的晚上把它算进在床时间，这样效率也能反映入睡困难，不只是夜里醒来
     const effLogs = recent.filter((l) => l.asleep_minutes > 0)
     const asleepSum = effLogs.reduce((a, l) => a + l.asleep_minutes, 0)
-    const inBedSum = effLogs.reduce((a, l) => a + l.asleep_minutes + l.awake_minutes, 0)
+    const inBedSum = effLogs.reduce(
+      (a, l) => a + l.asleep_minutes + l.awake_minutes + (latencyForLog(l, lightsOutByNight) ?? 0), 0)
     return {
       avgSleepTime, avgDurationH, recommended, recommendedFloored,
       avgWakeTime, count: recent.length,
       efficiency: inBedSum > 0 ? asleepSum / inBedSum : null,
       avgAsleepMinutes: effLogs.length > 0 ? asleepSum / effLogs.length : null,
       efficiencyNights: effLogs.length,
+      avgLatency: latencies.length > 0 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : null,
+      latencyNights: latencies.length,
     }
-  }, [logs])
+  }, [logs, lightsOutByNight])
 
   // 明天（起床那天）是否工作日：只影响文案和「放纵一下」入口，起床时间每天固定
   const tomorrowIsWorkday = isWorkday(dayjs().add(1, 'day').format('YYYY-MM-DD'))
@@ -413,17 +459,27 @@ export default function SleepPage() {
       title: '入睡时间',
       dataIndex: 'sleep_time',
       key: 'sleep_time',
-      render: (t: string, record: SleepLog) => (
-        <Space>
-          <MoonOutlined style={{ color: '#6ba39d' }} />
-          <Text>{t}</Text>
-          {record.penalized && (
-            <Tooltip title={`超过 01:30 入睡，扣除 ${record.penalty_exp.toFixed(1)} 积分`}>
-              <WarningOutlined style={{ color: '#f59e0b' }} />
-            </Tooltip>
-          )}
-        </Space>
-      ),
+      render: (t: string, record: SleepLog) => {
+        const latency = latencyForLog(record, lightsOutByNight)
+        return (
+          <div>
+            <Space>
+              <MoonOutlined style={{ color: '#6ba39d' }} />
+              <Text>{t}</Text>
+              {record.penalized && (
+                <Tooltip title={`超过 01:30 入睡，扣除 ${record.penalty_exp.toFixed(1)} 积分`}>
+                  <WarningOutlined style={{ color: '#f59e0b' }} />
+                </Tooltip>
+              )}
+            </Space>
+            {latency !== null && (
+              <div style={{ fontSize: 11, color: latencyColor(latency) }}>
+                关灯后 {latency} 分钟睡着
+              </div>
+            )}
+          </div>
+        )
+      },
     },
     {
       title: '起床时间',
@@ -438,7 +494,8 @@ export default function SleepPage() {
         const h = Math.floor(d)
         const m = Math.round((d - h) * 60)
         const color = d >= 7 ? '#22c55e' : d >= 6 ? '#f59e0b' : '#ef4444'
-        const inBed = record.asleep_minutes + record.awake_minutes
+        // 与顶部汇总同一口径：有关灯打卡时把入睡耗时算进在床时间
+        const inBed = record.asleep_minutes + record.awake_minutes + (latencyForLog(record, lightsOutByNight) ?? 0)
         return (
           <div>
             <Text style={{ color, fontWeight: 600 }}>{h}h {m}m</Text>
@@ -576,6 +633,14 @@ export default function SleepPage() {
                 valueStyle={{ color: '#0891b2', fontSize: 22, fontWeight: 700 }}
                 prefix={<MoonOutlined style={{ color: '#06b6d4' }} />}
               />
+              {recentStats.avgLatency !== null && (
+                <Tooltip title="关灯打卡到 Garmin 检测到睡着的时间。20 分钟内算正常，超过 30 分钟说明有入睡困难（睡前刷手机也会拉长它）。">
+                  <div style={{ marginTop: 6, fontSize: 12, color: latencyColor(recentStats.avgLatency) }}>
+                    平均关灯后 {recentStats.avgLatency} 分钟睡着
+                    <span style={{ color: '#9ca3af' }}>（{recentStats.latencyNights} 晚）</span>
+                  </div>
+                </Tooltip>
+              )}
             </Card>
           </Col>
           <Col xs={24} sm={8}>
@@ -591,7 +656,7 @@ export default function SleepPage() {
                 }}
               />
               {recentStats.efficiency !== null && (
-                <Tooltip title="实际睡着时间 ÷ 睡眠窗口。85% 以上说明躺下能睡着，晚睡是拖延入睡；低于 85% 才是夜里醒着太多。Garmin 不记录躺下到睡着那段，所以反映不了入睡困难。">
+                <Tooltip title="实际睡着时间 ÷ 在床时间，85% 为达标线。Garmin 只从检测到睡着开始记录，有关灯打卡的晚上会把「关灯到睡着」那段也算进在床时间，这样入睡困难也能体现出来。">
                   <div style={{ marginTop: 6, fontSize: 12, color: recentStats.efficiency >= EFFICIENCY_TARGET ? '#16a34a' : '#d97706' }}>
                     睡眠效率 {Math.round(recentStats.efficiency * 100)}%
                     <span style={{ color: '#9ca3af' }}>（{recentStats.efficiencyNights} 晚）</span>
@@ -771,6 +836,38 @@ export default function SleepPage() {
                 </div>
               )
             })}
+          </div>
+          {/* 关灯打卡：测量「关灯 → 睡着」要多久，Garmin 看不到这一段 */}
+          <div style={{ marginTop: 12 }}>
+            {tonightLightsOut ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#3d6d68' }}>🔦 已关灯</span>
+                <TimePicker
+                  value={dayjs(tonightLightsOut, 'HH:mm')}
+                  onChange={(v) => v && saveLightsOut(v.format('HH:mm'))}
+                  format="HH:mm"
+                  minuteStep={1}
+                  allowClear={false}
+                  needConfirm={false}
+                  inputReadOnly
+                  size="small"
+                  style={{ width: 88 }}
+                />
+                <Tooltip title="睡不着起身后重新躺下时点这个，入睡耗时从最后一次躺下算起">
+                  <Button size="small" onClick={handleLightsOut}>又躺下了</Button>
+                </Tooltip>
+                <Button size="small" type="text" onClick={handleUndoLightsOut} style={{ color: '#9ca3af' }}>
+                  撤销
+                </Button>
+              </div>
+            ) : (
+              <>
+                <Button type="primary" block onClick={handleLightsOut}>🔦 关灯了</Button>
+                <div style={{ marginTop: 4, fontSize: 11, color: '#9ca3af', textAlign: 'center' }}>
+                  躺下关灯时点一下，明早自动算出多久睡着（不加分，只用来测量）
+                </div>
+              </>
+            )}
           </div>
           {/* CBT-I 刺激控制：越用力想睡越睡不着，睡不着就离床，让「床」重新只和睡觉绑定 */}
           <div style={{ marginTop: 10, fontSize: 11, color: '#9ca3af', lineHeight: 1.6 }}>
@@ -1094,6 +1191,26 @@ function WallpaperCanvas({
 }
 
 // ─── 工具函数 ────────────────────────────────────────────────
+
+// 入睡耗时 = Garmin 入睡时间 − 关灯时间（分钟）。睡眠记录日期是起床那天，关灯挂在前一晚。
+// 中午前的时间视为次日凌晨再相减；为负或超过 240 分钟视为数据异常（与后端 maxSleepLatencyMinutes 一致）
+function latencyForLog(log: SleepLog, lightsOutByNight: Record<string, string>): number | null {
+  const lightsOut = lightsOutByNight[dayjs(log.date).subtract(1, 'day').format('YYYY-MM-DD')]
+  if (!lightsOut || !log.sleep_time) return null
+  const toNightMinutes = (t: string) => {
+    const [h, m] = t.split(':').map(Number)
+    const v = h * 60 + m
+    return v < 12 * 60 ? v + 24 * 60 : v
+  }
+  const d = toNightMinutes(log.sleep_time) - toNightMinutes(lightsOut)
+  return d >= 0 && d <= 240 ? d : null
+}
+
+function latencyColor(minutes: number): string {
+  if (minutes <= 20) return '#16a34a'
+  if (minutes <= 30) return '#d97706'
+  return '#dc2626'
+}
 
 // 把若干个 "HH:mm" 时间求平均，正确处理跨午夜的情况。
 // 思路：所有 < 12:00 的时间视为「次日凌晨」，加 24h 再平均，最后对 24h 取模。

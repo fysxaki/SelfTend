@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AnalyticsItem, ChatMessage, EnergyLog, Prize, RedemptionLog, ReviewLog, Season, SleepLog, Task, TaskLog, UserStats, Wish, WorryNote } from '@/types'
+import type { AnalyticsItem, ChatMessage, EnergyLog, LightsOutLog, Prize, RedemptionLog, ReviewLog, Season, SleepLog, Task, TaskLog, UserStats, Wish, WorryNote } from '@/types'
 
 export const http = axios.create({
   baseURL: '/api',
@@ -142,3 +142,10 @@ export const getWindDownChecks = (night: string) =>
   http.get<WindDownChecksResp, WindDownChecksResp>('/wind-down/checks', { params: { night } })
 export const setWindDownCheck = (night: string, stepKey: string, checked: boolean) =>
   http.post<WindDownChecksResp, WindDownChecksResp>('/wind-down/checks', { night_date: night, step_key: stepKey, checked })
+
+// 关灯打卡（测量入睡耗时，不发积分）
+export const getLightsOut = (params: { start_date: string; end_date: string }) =>
+  http.get<LightsOutLog[], LightsOutLog[]>('/lights-out', { params })
+export const setLightsOut = (night: string, time: string) =>
+  http.put<LightsOutLog, LightsOutLog>('/lights-out', { night_date: night, time })
+export const deleteLightsOut = (night: string) => http.delete(`/lights-out/${night}`)

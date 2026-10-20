@@ -96,6 +96,13 @@ export interface SleepLog {
   created_at: string
 }
 
+// 关灯打卡：night_date 是这一晚的日期（凌晨 6 点前算前一晚），对应次日起床那天的睡眠记录
+export interface LightsOutLog {
+  id: number
+  night_date: string
+  time: string        // HH:MM
+}
+
 export interface EnergyLog {
   id: number
   date: string        // YYYY-MM-DD

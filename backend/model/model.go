@@ -90,6 +90,16 @@ type SleepLog struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+// LightsOutLog 关灯打卡：每晚一条，记录躺下关灯的时间，与 Garmin 的入睡时间相减得到「入睡耗时」。
+// Garmin 只从检测到睡着才开始记录，看不到躺下到睡着这段，所以需要手动打卡补上。
+// 不发积分：这是测量工具，发分会诱导「没躺下也先点」，数据就不准了。
+type LightsOutLog struct {
+	ID        uint      `json:"id" gorm:"primaryKey"`
+	NightDate string    `json:"night_date" gorm:"uniqueIndex"` // 这一晚的日期，凌晨 6 点前算前一晚
+	Time      string    `json:"time"`                          // HH:MM，以最后一次躺下为准
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 // WindDownCheck 睡前锚点打卡。每晚每个锚点最多一条，取消打卡时撤销已发积分，
 // 所以必须存后端（只存浏览器的话，来回勾选就能无限刷分）。
 type WindDownCheck struct {
