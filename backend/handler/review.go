@@ -3,6 +3,7 @@ package handler
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,6 +21,16 @@ import (
 
 const deepseekEndpoint = "https://api.deepseek.com/chat/completions"
 const deepseekDefaultModel = "deepseek-v4-flash"
+
+// DeepSeek v4 是推理模型，思考过程也计入 max_tokens。原先 1024 / 1500 经常被思考用光，
+// 正文写到一半甚至一个字都没写就被截断。实测一个稍复杂的问题需要约 6500（思考约 5000）。
+const aiMaxTokens = 8192
+
+// 复盘流式回答的整体时长上限；Pro 模型思考可能长达数分钟
+const reviewStreamMaxDuration = 10 * time.Minute
+
+// 思考阶段的保活间隔，需远小于 nginx proxy_read_timeout（300s）
+const streamKeepAliveInterval = 15 * time.Second
 
 // ── System Prompt ──────────────────────────────────────────────────────────
 
@@ -124,8 +135,10 @@ type DSResponse struct {
 type DSStreamChunk struct {
 	Choices []struct {
 		Delta struct {
-			Content string `json:"content"`
+			Content          string `json:"content"`
+			ReasoningContent string `json:"reasoning_content"` // 推理模型的思考过程，不展示，只用来判断「还在思考」
 		} `json:"delta"`
+		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 	Error *struct {
 		Message string `json:"message"`
@@ -167,7 +180,10 @@ func Chat(db *gorm.DB) gin.HandlerFunc {
 			model = deepseekDefaultModel
 		}
 
-		dsResp, err := startDeepSeekStream(apiKey, model, messages)
+		// 用请求自身的 context：用户点「停止」或关页面时，上游 DeepSeek 请求一并取消
+		ctx, cancel := context.WithTimeout(c.Request.Context(), reviewStreamMaxDuration)
+		defer cancel()
+		dsResp, err := startDeepSeekStream(ctx, apiKey, model, messages)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -179,6 +195,7 @@ func Chat(db *gorm.DB) gin.HandlerFunc {
 		c.Header("X-Accel-Buffering", "no")
 
 		scanner := bufio.NewScanner(dsResp)
+		lastWrite := time.Now()
 		c.Stream(func(w io.Writer) bool {
 			if !scanner.Scan() {
 				return false
@@ -203,12 +220,26 @@ func Chat(db *gorm.DB) gin.HandlerFunc {
 			if len(chunk.Choices) == 0 {
 				return true
 			}
-			content := chunk.Choices[0].Delta.Content
+			choice := chunk.Choices[0]
+			// 达到长度上限：告诉用户是被截断了，而不是让回答悄悄停在半句
+			if choice.FinishReason == "length" {
+				payload, _ := json.Marshal(map[string]string{"token": "\n\n（回答达到长度上限被截断了，可以说「接着说」让我继续。）"})
+				fmt.Fprintf(w, "data: %s\n\n", payload)
+				return true
+			}
+			content := choice.Delta.Content
 			if content == "" {
+				// 推理模型思考阶段只有 reasoning_content、没有正文。这段时间不往前端写任何字节的话，
+				// nginx 会按 proxy_read_timeout（300s）把连接断掉，所以定期发一个 SSE 注释保活（前端会忽略）
+				if time.Since(lastWrite) > streamKeepAliveInterval {
+					fmt.Fprint(w, ": thinking\n\n")
+					lastWrite = time.Now()
+				}
 				return true
 			}
 			payload, _ := json.Marshal(map[string]string{"token": content})
 			fmt.Fprintf(w, "data: %s\n\n", payload)
+			lastWrite = time.Now()
 			return true
 		})
 	}
@@ -411,27 +442,34 @@ func getConfig(db *gorm.DB, key, fallback string) string {
 	return cfg.Value
 }
 
+// streamClient 流式请求专用。不能用 http.Client.Timeout：它把读响应体的时间也算进去，
+// 流式回答超过这个时长会被半路掐断。这里只限制「等到响应头」的时间，整体时长由调用方的 ctx 控制。
+var streamClient = func() *http.Client {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.ResponseHeaderTimeout = 60 * time.Second
+	return &http.Client{Transport: t}
+}()
+
 // startDeepSeekStream 发起流式请求，返回 response body（调用方负责 Close）
-func startDeepSeekStream(apiKey string, model string, messages []DSMessage) (io.ReadCloser, error) {
+func startDeepSeekStream(ctx context.Context, apiKey string, model string, messages []DSMessage) (io.ReadCloser, error) {
 	reqBody := DSRequest{
 		Model:    model,
 		Messages: messages,
 		// 0.6：教练语气的温暖由 prompt 保证，这里压低采样温度以减少数据幻觉
 		Temperature: 0.6,
-		MaxTokens:   1024,
+		MaxTokens:   aiMaxTokens,
 		Stream:      true,
 	}
 
 	body, _ := json.Marshal(reqBody)
-	httpReq, err := http.NewRequest("POST", deepseekEndpoint, bytes.NewBuffer(body))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", deepseekEndpoint, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 
-	client := &http.Client{Timeout: 60 * time.Second}
-	resp, err := client.Do(httpReq)
+	resp, err := streamClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("请求 DeepSeek 失败: %v", err)
 	}
