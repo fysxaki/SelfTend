@@ -41,15 +41,7 @@ export default function TaskCard({ task, onComplete, onUndo }: Props) {
     setLoading(true)
     try {
       const res = await onComplete(task, expOverride)
-      const actualExp = res.task_log.exp_awarded
-      if (res.penalty_applied) {
-        message.warning({
-          content: `😴 晚睡惩罚 -10%  实得 +${formatExp(actualExp)} 积分`,
-          duration: 4,
-        })
-      } else {
-        message.success(`✅ +${formatExp(actualExp)} 积分`)
-      }
+      message.success(`✅ +${formatExp(res.task_log.exp_awarded)} 积分`)
     } finally {
       setLoading(false)
     }

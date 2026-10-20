@@ -35,14 +35,6 @@ func CompleteTask(db *gorm.DB) gin.HandlerFunc {
 			exp = req.ExpOverride
 		}
 
-		// 实时检查今日晚睡惩罚标记，有则本次积分按 lateSleepPenaltyRate 打折
-		penaltyApplied := TodaySleepPenalty(db)
-		var penaltyAmount float64
-		if penaltyApplied {
-			penaltyAmount = exp * lateSleepPenaltyRate
-			exp -= penaltyAmount
-		}
-
 		taskLog := model.TaskLog{
 			TaskID:      req.TaskID,
 			CompletedAt: time.Now().UTC(), // 统一存 UTC：SQLite 是字符串比较，混入 +08:00 会让跨日判断出错
@@ -51,18 +43,7 @@ func CompleteTask(db *gorm.DB) gin.HandlerFunc {
 		}
 		db.Create(&taskLog)
 		updateUserStats(db, exp)
-
-		// 将本次扣分累加到今天的 SleepLog.PenaltyExp，保持显示准确
-		if penaltyAmount > 0 {
-			todayCST := time.Now().In(cst).Format("2006-01-02")
-			db.Model(&model.SleepLog{}).
-				Where("date = ? AND penalized = ?", todayCST, true).
-				UpdateColumn("penalty_exp", gorm.Expr("penalty_exp + ?", penaltyAmount))
-		}
-		c.JSON(http.StatusOK, gin.H{
-			"task_log":       taskLog,
-			"penalty_applied": penaltyApplied,
-		})
+		c.JSON(http.StatusOK, gin.H{"task_log": taskLog})
 	}
 }
 
