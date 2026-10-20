@@ -338,8 +338,6 @@ export default function SleepPage() {
         if (log.penalized) {
           if (log.penalty_exp > 0)
             parts.push(`🌙 入睡偏晚，扣了 ${log.penalty_exp.toFixed(1)} 分，今晚早点休息`)
-          else if (isToday)
-            parts.push(`🌙 晚睡惩罚已激活，今日任务奖励将打九折`)
           else
             parts.push(`🌙 ${dateLabel} 晚睡已记录`)
         }
@@ -512,15 +510,12 @@ export default function SleepPage() {
       title: '奖惩',
       key: 'bonus',
       render: (_: unknown, record: SleepLog) => {
-        const isToday = record.date === todayStr
         const lines: React.ReactNode[] = []
         if (record.penalized) {
           if (record.penalty_exp > 0)
             lines.push(<div key="late" style={{ color: '#ef4444', fontSize: 12 }}>🌙 晚睡 -{record.penalty_exp.toFixed(1)}</div>)
-          else if (isToday)
-            lines.push(<div key="late-active" style={{ color: '#f59e0b', fontSize: 12 }}>🌙 晚睡惩罚中</div>)
           else
-            lines.push(<div key="late-none" style={{ color: '#f59e0b', fontSize: 12 }}>🌙 晚睡（当日无任务）</div>)
+            lines.push(<div key="late-none" style={{ color: '#f59e0b', fontSize: 12 }}>🌙 晚睡</div>)
         }
         if (record.bonus_exp > 0)
           lines.push(<div key="bonus" style={{ color: '#22c55e', fontSize: 12 }}>⏰ 时长 +{record.bonus_exp.toFixed(0)}</div>)
@@ -567,7 +562,7 @@ export default function SleepPage() {
             <span className="font-script" style={{ fontSize: 26, color: '#6ba39d' }}>Sleep</span>
           </div>
           <Text type="secondary" style={{ fontSize: 13 }}>
-            超过 01:30 入睡扣10% · &lt;6h 扣20% · 6→8h 线性 0~+52 · 固定时间起床 +10 · 睡前锚点每项 +{WIND_DOWN_STEP_EXP}
+            超过 01:30 入睡扣 10 分 · &lt;6h 扣20% · 6→8h 线性 0~+52（只算到固定起床+30min）· 固定时间起床 +10 · 睡前锚点每项 +{WIND_DOWN_STEP_EXP}
           </Text>
         </div>
         <Button
@@ -596,7 +591,7 @@ export default function SleepPage() {
                 <Text style={{ color: '#92400e' }}>
                   昨晚 {todayLog.sleep_time} 才入睡，{todayLog.penalty_exp > 0
                     ? <>轻轻扣了 <strong>{todayLog.penalty_exp.toFixed(1)}</strong> 分——今晚试试早点躺下？</>
-                    : '晚睡惩罚已激活，今日任务奖励将打九折'}
+                    : '今晚试试早点躺下？'}
                 </Text>
               </Space>
             )}

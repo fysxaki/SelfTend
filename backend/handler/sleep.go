@@ -21,10 +21,10 @@ const defaultWakeTime = "08:52"
 const penaltyThresholdHour = 1
 const penaltyThresholdMin = 30
 
-// 晚睡惩罚比例：入睡晚于 01:30 时，当天任务积分按这个比例扣。
-// 原为 20%，按 CBT-I「多奖励可控行为、少罚结果」降到 10%。没有完全取消，是因为对拖延入睡来说，
-// 入睡时间基本等于自己决定的上床时间，仍然值得约束；只是不宜重罚，免得睡前因为怕扣分而更紧张。
-const lateSleepPenaltyRate = 0.1
+// 晚睡惩罚：入睡晚于 01:30 时每晚固定扣 lateSleepPenaltyExp 分。
+// 以前按「当天任务积分的百分比」扣，当天没做什么任务就几乎扣不到，起不到约束作用；
+// 改成固定值后与任务多少无关，也不再对当天后续完成的任务打折。
+const lateSleepPenaltyExp = 10.0
 
 // 起床时间稳定奖励：CBT-I 最核心的一条是「固定起床时间，周末也一样」。
 // 实际起床与配置的固定起床时间相差不超过 wakeBonusToleranceMin 分钟就发奖励。
@@ -86,14 +86,14 @@ func CreateSleepLog(db *gorm.DB) gin.HandlerFunc {
 			Duration:  duration,
 		}
 
-		// 晚睡惩罚：补扣该日已完成任务的20%
+		// 晚睡惩罚：固定扣 lateSleepPenaltyExp 分
 		log.Penalized = isSleepPenalized(req.SleepTime)
 		if log.Penalized {
-			log.PenaltyExp = applyRetroactivePenalty(db, date)
+			log.PenaltyExp = applyLatePenalty(db)
 		}
 
 		// 时长奖惩：<6h 扣该日任务积分20%，6→8h 线性 0~+52，>=8h 封顶
-		log.BonusExp = applyDurationBonus(db, duration, date)
+		log.BonusExp = applyDurationBonus(db, duration, rewardableDuration(db, date, req.SleepTime, wakeTime, duration), date)
 		if req.WakeTime != "" {
 			log.WakeBonusExp = applyWakeBonus(db, wakeTime)
 		}
@@ -154,7 +154,7 @@ func UpdateSleepLog(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 退还旧的晚睡补扣
+		// 退还旧的晚睡扣分
 		if log.Penalized && log.PenaltyExp > 0 {
 			refundStats(db, log.PenaltyExp)
 		}
@@ -169,11 +169,11 @@ func UpdateSleepLog(db *gorm.DB) gin.HandlerFunc {
 		log.Penalized = isSleepPenalized(sleepTime)
 		log.PenaltyExp = 0
 		if log.Penalized {
-			log.PenaltyExp = applyRetroactivePenalty(db, log.Date)
+			log.PenaltyExp = applyLatePenalty(db)
 		}
 
 		// 重新计算时长奖惩和起床奖励
-		log.BonusExp = applyDurationBonus(db, duration, log.Date)
+		log.BonusExp = applyDurationBonus(db, duration, rewardableDuration(db, log.Date, sleepTime, wakeTime, duration), log.Date)
 		log.WakeBonusExp = applyWakeBonus(db, wakeTime)
 
 		db.Save(&log)
@@ -282,9 +282,9 @@ func ImportSleepLog(db *gorm.DB) gin.HandlerFunc {
 			existing.Penalized = isSleepPenalized(req.SleepTime)
 			existing.PenaltyExp = 0
 			if existing.Penalized {
-				existing.PenaltyExp = applyRetroactivePenalty(db, req.Date)
+				existing.PenaltyExp = applyLatePenalty(db)
 			}
-			existing.BonusExp = applyDurationBonus(db, duration, req.Date)
+			existing.BonusExp = applyDurationBonus(db, duration, rewardableDuration(db, req.Date, req.SleepTime, wakeTime, duration), req.Date)
 			existing.WakeBonusExp = 0
 			if req.WakeTime != "" {
 				existing.WakeBonusExp = applyWakeBonus(db, wakeTime)
@@ -309,9 +309,9 @@ func ImportSleepLog(db *gorm.DB) gin.HandlerFunc {
 		}
 		log.Penalized = isSleepPenalized(req.SleepTime)
 		if log.Penalized {
-			log.PenaltyExp = applyRetroactivePenalty(db, req.Date)
+			log.PenaltyExp = applyLatePenalty(db)
 		}
-		log.BonusExp = applyDurationBonus(db, duration, req.Date)
+		log.BonusExp = applyDurationBonus(db, duration, rewardableDuration(db, req.Date, req.SleepTime, wakeTime, duration), req.Date)
 		if req.WakeTime != "" {
 			log.WakeBonusExp = applyWakeBonus(db, wakeTime)
 		}
@@ -330,7 +330,7 @@ func DeleteSleepLog(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 退还晚睡补扣
+		// 退还晚睡扣分
 		if log.Penalized && log.PenaltyExp > 0 {
 			refundStats(db, log.PenaltyExp)
 		}
@@ -374,7 +374,7 @@ func calcSleepDuration(date, sleepTimeStr, wakeTimeStr string) (float64, error) 
 }
 
 // isSleepPenalized 判断入睡时间是否超过 01:30（凌晨惩罚区间 00:00~05:59）
-// 只返回布尔值；实际扣分在每次任务完成时实时执行
+// 只返回布尔值；扣分由 applyLatePenalty 在记录睡眠时一次性执行
 func isSleepPenalized(sleepTimeStr string) bool {
 	var h, m int
 	fmt.Sscanf(sleepTimeStr, "%d:%d", &h, &m)
@@ -382,37 +382,20 @@ func isSleepPenalized(sleepTimeStr string) bool {
 	return isLateNight && (h > penaltyThresholdHour || (h == penaltyThresholdHour && m > penaltyThresholdMin))
 }
 
-// TodaySleepPenalty 供外部查询今天是否有晚睡惩罚标记
-func TodaySleepPenalty(db *gorm.DB) bool {
-	todayCST := time.Now().In(cst).Format("2006-01-02")
-	var sl model.SleepLog
-	return db.Where("date = ? AND penalized = ?", todayCST, true).First(&sl).Error == nil
-}
-
-// applyRetroactivePenalty 补扣指定日期已完成任务积分的20%，返回扣除金额
-func applyRetroactivePenalty(db *gorm.DB, date string) float64 {
-	dayStart, err := time.ParseInLocation("2006-01-02", date, cst)
-	if err != nil {
-		return 0
-	}
-	dayEnd := dayStart.Add(24 * time.Hour)
-	type sumResult struct{ Total float64 }
-	var r sumResult
-	db.Model(&model.TaskLog{}).
-		Select("COALESCE(SUM(exp_awarded), 0) as total").
-		Where("datetime(completed_at) >= datetime(?) AND datetime(completed_at) < datetime(?)", dayStart.UTC(), dayEnd.UTC()).
-		Scan(&r)
-	if r.Total <= 0 {
-		return 0
-	}
-	penalty := r.Total * lateSleepPenaltyRate
+// applyLatePenalty 晚睡固定扣 lateSleepPenaltyExp 分，返回扣除额（存进 PenaltyExp，撤销时原样退还）
+func applyLatePenalty(db *gorm.DB) float64 {
 	var stats model.UserStats
 	db.First(&stats)
+	penalty := lateSleepPenaltyExp
+	// 不把积分扣成负数；实际扣了多少就记多少，撤销时退还的才准确
+	if stats.SpendableExp < penalty {
+		penalty = stats.SpendableExp
+	}
+	if penalty <= 0 {
+		return 0
+	}
 	stats.SpendableExp -= penalty
 	stats.TotalExp -= penalty
-	if stats.SpendableExp < 0 {
-		stats.SpendableExp = 0
-	}
 	if stats.TotalExp < 0 {
 		stats.TotalExp = 0
 	}
@@ -466,11 +449,10 @@ func BackfillPenaltyExp(db *gorm.DB) gin.HandlerFunc {
 // applyDurationBonus 根据睡眠时长发放奖励或惩罚，返回净变化量（正=加分，负=扣分）
 //
 // 规则（全程线性平滑，避免阶梯跳跃）：
-//   - <6h:    扣该日任务积分 20%
-//   - 6-7h:   线性 0 → 12（每多 0.1h 加 1.2 分）
-//   - 7-8h:   线性 12 → 52（每多 0.1h 加 4 分）
-//   - >=8h:   封顶 52 分
-func applyDurationBonus(db *gorm.DB, duration float64, date string) float64 {
+//   - 实际睡眠 <6h：扣该日任务积分 20%（按实际时长判断，补觉不会被罚）
+//   - 奖励按 rewardHours（只算到固定起床时间 + 宽限，见 rewardableDuration）：
+//     6-7h 线性 0 → 12，7-8h 线性 12 → 52，>=8h 封顶 52；不足 6h 不奖励
+func applyDurationBonus(db *gorm.DB, duration, rewardHours float64, date string) float64 {
 	var stats model.UserStats
 	db.First(&stats)
 
@@ -504,15 +486,17 @@ func applyDurationBonus(db *gorm.DB, duration float64, date string) float64 {
 		return -penalty
 	}
 
-	// 6h 以上的奖励：分两段线性插值，8h 封顶
+	// 奖励：分两段线性插值，8h 封顶
 	//   6-7h: 0 → 12  (斜率 12/h)
 	//   7-8h: 12 → 52 (斜率 40/h)
 	var bonus float64
 	switch {
-	case duration < 7:
-		bonus = (duration - 6) * 12
-	case duration <= 8:
-		bonus = 12 + (duration-7)*40
+	case rewardHours < 6:
+		return 0
+	case rewardHours < 7:
+		bonus = (rewardHours - 6) * 12
+	case rewardHours <= 8:
+		bonus = 12 + (rewardHours-7)*40
 	default:
 		bonus = 52
 	}
@@ -526,6 +510,29 @@ func applyDurationBonus(db *gorm.DB, duration float64, date string) float64 {
 	stats.Level = calcLevel(stats.TotalExp)
 	db.Save(&stats)
 	return bonus
+}
+
+// rewardableDuration 时长奖励只算到「固定起床时间 + wakeBonusToleranceMin」为止，
+// 之后多睡的部分不加分：凌晨 4 点睡、睡到中午不再能拿满时长奖励，想拿满只能早点睡。
+func rewardableDuration(db *gorm.DB, date, sleepTime, wakeTime string, actual float64) float64 {
+	fixed := getConfig(db, fixedWakeConfigKey, fixedWakeDefault)
+	ft, err1 := time.Parse("15:04", fixed)
+	wt, err2 := time.Parse("15:04", wakeTime)
+	if err1 != nil || err2 != nil {
+		return actual
+	}
+	cutoff := ft.Add(wakeBonusToleranceMin * time.Minute)
+	if !wt.After(cutoff) {
+		return actual // 没有睡过头，全部计入
+	}
+	d, err := calcSleepDuration(date, sleepTime, cutoff.Format("15:04"))
+	if err != nil {
+		return actual
+	}
+	if d > actual {
+		return 0 // 入睡本身就在截止点之后（如白天补觉），截止点前没有可奖励的睡眠
+	}
+	return d
 }
 
 // applyWakeBonus 实际起床时间与固定起床时间相差不超过 wakeBonusToleranceMin 分钟时发奖励，返回发放额
