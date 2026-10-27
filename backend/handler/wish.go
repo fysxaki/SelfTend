@@ -13,7 +13,7 @@ import (
 
 const (
 	// 单笔心愿价格上限（元）：护栏，超过必须走「先攒够再买」，防冲动大额下单
-	wishPriceCapYuan = 550.0
+	wishPriceCapYuan = 1500.0
 	// 同时进行中的心愿数：1——必须还清当前的才能启用下一个
 	wishMaxConcurrent = 1
 )
