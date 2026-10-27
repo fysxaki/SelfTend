@@ -4,16 +4,16 @@ import {
   HeartOutlined,
   PlusOutlined,
 } from '@ant-design/icons'
-import { Button, Form, Input, InputNumber, Modal, Progress, Spin, message } from 'antd'
+import { Button, Form, Input, InputNumber, Modal, Progress, Space, Spin, message } from 'antd'
 import { useEffect, useState } from 'react'
-import { createWish, deleteWish, getWishes } from '@/api'
+import { contributeWish, createWish, deleteWish, getWishes } from '@/api'
 import { FloatingDecorations } from '@/components/Decorations'
 import { useAppStore } from '@/stores/useAppStore'
 import type { Wish } from '@/types'
 import { formatExp } from '@/utils/task'
 
 export default function WishPage() {
-  const { fetchStats } = useAppStore()
+  const { stats, fetchStats } = useAppStore()
   const [wishes, setWishes] = useState<Wish[]>([])
   const [priceCap, setPriceCap] = useState(1500)
   const [maxConcurrent, setMaxConcurrent] = useState(1)
@@ -21,6 +21,9 @@ export default function WishPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
+  const [fillWish, setFillWish] = useState<Wish | null>(null)
+  const [fillAmount, setFillAmount] = useState<number>(0)
+  const [filling, setFilling] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -65,6 +68,38 @@ export default function WishPage() {
     }
   }
 
+  const spendable = stats?.spendable_exp ?? 0
+  const fillRemaining = fillWish ? Math.max(0, fillWish.target_exp - fillWish.earned_exp) : 0
+  // 最多能填：可用积分和剩余目标取小；快捷档位按可用积分的比例算
+  const fillMax = Math.min(spendable, fillRemaining)
+  const quickAmount = (ratio: number) => Math.min(fillMax, Math.floor(spendable * ratio * 10) / 10)
+
+  const openFill = (wish: Wish) => {
+    setFillWish(wish)
+    setFillAmount(0)
+    fetchStats()
+  }
+
+  const handleFill = async () => {
+    if (!fillWish || fillAmount <= 0) return
+    setFilling(true)
+    try {
+      const res = await contributeWish(fillWish.id, fillAmount)
+      message.success(
+        res.wish.status === 'done'
+          ? `🎉 填入 ${formatExp(res.applied)} 分，「${res.wish.title}」已经彻底是你的了！`
+          : `🌱 已填入 ${formatExp(res.applied)} 分`,
+      )
+      setFillWish(null)
+      await Promise.all([load(), fetchStats()])
+    } catch (e) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
+      if (msg) message.error(msg)
+    } finally {
+      setFilling(false)
+    }
+  }
+
   const handleDelete = (wish: Wish) => {
     Modal.confirm({
       title: `删除「${wish.title}」？`,
@@ -102,7 +137,7 @@ export default function WishPage() {
         <>
           {/* 进行中的心愿 */}
           {active.map((w) => (
-            <ActiveWishCard key={w.id} wish={w} onDelete={handleDelete} />
+            <ActiveWishCard key={w.id} wish={w} onDelete={handleDelete} onFill={openFill} />
           ))}
 
           {/* 启用入口 / 已满提示 */}
@@ -160,6 +195,48 @@ export default function WishPage() {
         </>
       )}
 
+      {/* 用现有积分填入 */}
+      <Modal
+        title={fillWish ? `用现有积分填入「${fillWish.title}」` : ''}
+        open={!!fillWish}
+        onOk={handleFill}
+        onCancel={() => setFillWish(null)}
+        confirmLoading={filling}
+        okText="填入"
+        cancelText="取消"
+        okButtonProps={{ disabled: fillAmount <= 0 }}
+        destroyOnHidden
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#6b7280', margin: '8px 0 14px' }}>
+          <span>可用积分 <strong style={{ color: '#3d6d68' }}>{formatExp(spendable)}</strong></span>
+          <span>心愿还差 <strong style={{ color: '#3d6d68' }}>{formatExp(fillRemaining)}</strong></span>
+        </div>
+        <Space size={8} style={{ marginBottom: 12 }}>
+          {[0, 0.5, 1].map((r) => (
+            <Button
+              key={r}
+              type={fillAmount === quickAmount(r) ? 'primary' : 'default'}
+              onClick={() => setFillAmount(quickAmount(r))}
+            >
+              {r === 0 ? '0' : `${r * 100}%`}
+            </Button>
+          ))}
+        </Space>
+        <InputNumber
+          min={0}
+          max={fillMax}
+          step={1}
+          precision={1}
+          value={fillAmount}
+          onChange={(v) => setFillAmount(Math.min(fillMax, v ?? 0))}
+          addonAfter="分"
+          style={{ width: '100%' }}
+        />
+        <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 8 }}>
+          50% / 100% 按可用积分计算，最多填到心愿还差的数。只扣可用积分，不影响总经验和等级。
+        </div>
+      </Modal>
+
       {/* 启用心愿弹窗 */}
       <Modal
         title="启用一个心愿"
@@ -204,7 +281,7 @@ export default function WishPage() {
   )
 }
 
-function ActiveWishCard({ wish, onDelete }: { wish: Wish; onDelete: (w: Wish) => void }) {
+function ActiveWishCard({ wish, onDelete, onFill }: { wish: Wish; onDelete: (w: Wish) => void; onFill: (w: Wish) => void }) {
   const pct = wish.target_exp > 0 ? Math.min(100, Math.round((wish.earned_exp / wish.target_exp) * 100)) : 0
   const remaining = Math.max(0, wish.target_exp - wish.earned_exp)
 
@@ -246,8 +323,13 @@ function ActiveWishCard({ wish, onDelete }: { wish: Wish; onDelete: (w: Wish) =>
         </div>
       </div>
 
-      <div style={{ marginTop: 14, fontSize: 12, color: '#4a8a83', background: 'rgba(255,255,255,0.6)', borderRadius: 8, padding: '8px 12px' }}>
-        🌱 新赚的积分正在 100% 自动注入这里。填满那天，它就彻底是你应得的了。
+      <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 220px', fontSize: 12, color: '#4a8a83', background: 'rgba(255,255,255,0.6)', borderRadius: 8, padding: '8px 12px' }}>
+          🌱 新赚的积分正在 100% 自动注入这里。填满那天，它就彻底是你应得的了。
+        </div>
+        <Button onClick={() => onFill(wish)} style={{ color: '#3d6d68', borderColor: '#9bc9c3', flexShrink: 0 }}>
+          用积分填入
+        </Button>
       </div>
     </div>
   )
