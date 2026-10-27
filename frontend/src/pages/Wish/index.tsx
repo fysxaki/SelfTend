@@ -15,7 +15,7 @@ import { formatExp } from '@/utils/task'
 export default function WishPage() {
   const { fetchStats } = useAppStore()
   const [wishes, setWishes] = useState<Wish[]>([])
-  const [priceCap, setPriceCap] = useState(550)
+  const [priceCap, setPriceCap] = useState(1500)
   const [maxConcurrent, setMaxConcurrent] = useState(1)
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
