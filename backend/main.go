@@ -130,6 +130,7 @@ func main() {
 		api.POST("/wishes", handler.CreateWish(db))
 		api.GET("/wishes", handler.GetWishes(db))
 		api.DELETE("/wishes/:id", handler.DeleteWish(db))
+		api.POST("/wishes/:id/contribute", handler.ContributeWish(db))
 
 		// 通用用户配置（key-value，如睡前倒计时锚点）
 		api.GET("/config/:key", handler.GetUserConfig(db))

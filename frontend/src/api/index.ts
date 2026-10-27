@@ -129,6 +129,9 @@ export const getWishes = () => http.get<WishListResp, WishListResp>('/wishes')
 export const createWish = (data: { title: string; reason?: string; price_yuan: number; target_exp?: number }) =>
   http.post<Wish, Wish>('/wishes', data)
 export const deleteWish = (id: number) => http.delete(`/wishes/${id}`)
+export type ContributeWishResp = { wish: Wish; applied: number; spendable_exp: number }
+export const contributeWish = (id: number, amount: number) =>
+  http.post<ContributeWishResp, ContributeWishResp>(`/wishes/${id}/contribute`, { amount })
 
 // 通用用户配置（key-value）
 export const getUserConfig = (key: string) =>

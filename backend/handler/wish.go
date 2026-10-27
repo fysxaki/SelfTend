@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -119,6 +120,69 @@ func GetWishes(db *gorm.DB) gin.HandlerFunc {
 			"price_cap_yuan": wishPriceCapYuan,
 			"max_concurrent": wishMaxConcurrent,
 		})
+	}
+}
+
+type ContributeWishReq struct {
+	Amount float64 `json:"amount"`
+}
+
+// ContributeWish 主动把现有可用积分填入进行中的心愿。
+// 只动可用积分、不动总经验（这些分早已计入等级）；超过剩余目标的部分不扣。
+func ContributeWish(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, _ := strconv.Atoi(c.Param("id"))
+		var req ContributeWishReq
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if req.Amount <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "填入积分必须大于 0"})
+			return
+		}
+
+		var wish model.Wish
+		var stats model.UserStats
+		var applied float64
+		err := db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.First(&wish, id).Error; err != nil {
+				return fmt.Errorf("心愿不存在")
+			}
+			if wish.Status != "active" {
+				return fmt.Errorf("这个心愿已经还清了")
+			}
+			if err := tx.First(&stats).Error; err != nil {
+				return err
+			}
+			if req.Amount > stats.SpendableExp+1e-9 {
+				return fmt.Errorf("可用积分不足（当前 %.1f）", stats.SpendableExp)
+			}
+			applied = req.Amount
+			if remaining := wish.TargetExp - wish.EarnedExp; applied > remaining {
+				applied = remaining
+			}
+			stats.SpendableExp -= applied
+			if stats.SpendableExp < 0 {
+				stats.SpendableExp = 0
+			}
+			wish.EarnedExp += applied
+			if wish.EarnedExp >= wish.TargetExp {
+				wish.EarnedExp = wish.TargetExp
+				wish.Status = "done"
+				now := time.Now()
+				wish.DoneAt = &now
+			}
+			if err := tx.Save(&stats).Error; err != nil {
+				return err
+			}
+			return tx.Save(&wish).Error
+		})
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"wish": wish, "applied": applied, "spendable_exp": stats.SpendableExp})
 	}
 }
 
