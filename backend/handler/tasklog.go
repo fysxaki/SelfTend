@@ -88,18 +88,8 @@ func UndoTask(db *gorm.DB) gin.HandlerFunc {
 
 		db.Delete(&log)
 
-		var stats model.UserStats
-		db.First(&stats)
-		stats.TotalExp -= refund
-		stats.SpendableExp -= refund
-		if stats.TotalExp < 0 {
-			stats.TotalExp = 0
-		}
-		if stats.SpendableExp < 0 {
-			stats.SpendableExp = 0
-		}
-		stats.Level = calcLevel(stats.TotalExp)
-		db.Save(&stats)
+		// 完成时的积分可能已注入心愿，撤销要连心愿进度一起扣回，否则「完成→撤销→再完成」能重复灌心愿
+		deductExp(db, refund)
 
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}

@@ -384,24 +384,7 @@ func isSleepPenalized(sleepTimeStr string) bool {
 
 // applyLatePenalty 晚睡固定扣 lateSleepPenaltyExp 分，返回扣除额（存进 PenaltyExp，撤销时原样退还）
 func applyLatePenalty(db *gorm.DB) float64 {
-	var stats model.UserStats
-	db.First(&stats)
-	penalty := lateSleepPenaltyExp
-	// 不把积分扣成负数；实际扣了多少就记多少，撤销时退还的才准确
-	if stats.SpendableExp < penalty {
-		penalty = stats.SpendableExp
-	}
-	if penalty <= 0 {
-		return 0
-	}
-	stats.SpendableExp -= penalty
-	stats.TotalExp -= penalty
-	if stats.TotalExp < 0 {
-		stats.TotalExp = 0
-	}
-	stats.Level = calcLevel(stats.TotalExp)
-	db.Save(&stats)
-	return penalty
+	return deductExp(db, lateSleepPenaltyExp)
 }
 
 // BackfillPenaltyExp 回填历史 SleepLog 的 penalty_exp
@@ -453,9 +436,6 @@ func BackfillPenaltyExp(db *gorm.DB) gin.HandlerFunc {
 //   - 奖励按 rewardHours（只算到固定起床时间 + 宽限，见 rewardableDuration）：
 //     6-7h 线性 0 → 12，7-8h 线性 12 → 52，>=8h 封顶 52；不足 6h 不奖励
 func applyDurationBonus(db *gorm.DB, duration, rewardHours float64, date string) float64 {
-	var stats model.UserStats
-	db.First(&stats)
-
 	// <6h 惩罚分支
 	if duration < 6 {
 		dayStart, err := time.ParseInLocation("2006-01-02", date, cst)
@@ -472,18 +452,7 @@ func applyDurationBonus(db *gorm.DB, duration, rewardHours float64, date string)
 		if r.Total <= 0 {
 			return 0
 		}
-		penalty := r.Total * 0.2
-		stats.SpendableExp -= penalty
-		stats.TotalExp -= penalty
-		if stats.SpendableExp < 0 {
-			stats.SpendableExp = 0
-		}
-		if stats.TotalExp < 0 {
-			stats.TotalExp = 0
-		}
-		stats.Level = calcLevel(stats.TotalExp)
-		db.Save(&stats)
-		return -penalty
+		return -deductExp(db, r.Total*0.2)
 	}
 
 	// 奖励：分两段线性插值，8h 封顶
@@ -503,12 +472,8 @@ func applyDurationBonus(db *gorm.DB, duration, rewardHours float64, date string)
 	// 保留 1 位小数
 	bonus = math.Round(bonus*10) / 10
 
-	stats.TotalExp += bonus
 	// 睡眠奖励同样优先注入进行中的心愿——早睡挣的分正是拿来还心愿的
-	routed := contributeActiveWish(db, bonus)
-	stats.SpendableExp += bonus - routed
-	stats.Level = calcLevel(stats.TotalExp)
-	db.Save(&stats)
+	grantExp(db, bonus)
 	return bonus
 }
 
@@ -585,36 +550,16 @@ func grantExp(db *gorm.DB, amount float64) {
 }
 
 // revertAward 撤销一笔已发放的奖惩：正数（曾加分）扣回，负数（曾扣分）补回。
-// 以前这里误用了 refundStats（只会加分、且遇到负数直接返回），导致编辑 / 删除 / 同步更新时
-// 正奖励被重复发放、负奖励永远补不回来。
-// 边界：当初若有部分注入了心愿池，这里统一从可用积分扣回，不回滚心愿进度。
+// 扣回走 deductExp（可用不够从心愿扣），补回走 grantExp（有心愿时优先回到心愿）。
 func revertAward(db *gorm.DB, amount float64) {
-	if amount == 0 {
-		return
+	if amount > 0 {
+		deductExp(db, amount)
+	} else if amount < 0 {
+		grantExp(db, -amount)
 	}
-	var stats model.UserStats
-	db.First(&stats)
-	stats.TotalExp -= amount
-	stats.SpendableExp -= amount
-	if stats.TotalExp < 0 {
-		stats.TotalExp = 0
-	}
-	if stats.SpendableExp < 0 {
-		stats.SpendableExp = 0
-	}
-	stats.Level = calcLevel(stats.TotalExp)
-	db.Save(&stats)
 }
 
-// refundStats 退还积分到 UserStats（只用于退还晚睡扣分 PenaltyExp，它是正数的扣除额）
+// refundStats 退还晚睡扣分 PenaltyExp（正数的扣除额）
 func refundStats(db *gorm.DB, amount float64) {
-	if amount <= 0 {
-		return
-	}
-	var stats model.UserStats
-	db.First(&stats)
-	stats.SpendableExp += amount
-	stats.TotalExp += amount
-	stats.Level = calcLevel(stats.TotalExp)
-	db.Save(&stats)
+	grantExp(db, amount)
 }

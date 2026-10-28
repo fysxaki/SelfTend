@@ -282,7 +282,8 @@ export default function WishPage() {
 }
 
 function ActiveWishCard({ wish, onDelete, onFill }: { wish: Wish; onDelete: (w: Wish) => void; onFill: (w: Wish) => void }) {
-  const pct = wish.target_exp > 0 ? Math.min(100, Math.round((wish.earned_exp / wish.target_exp) * 100)) : 0
+  // 惩罚可能把进度扣成负数，进度条按 0 显示，数字照实展示
+  const pct = wish.target_exp > 0 ? Math.max(0, Math.min(100, Math.round((wish.earned_exp / wish.target_exp) * 100))) : 0
   const remaining = Math.max(0, wish.target_exp - wish.earned_exp)
 
   return (

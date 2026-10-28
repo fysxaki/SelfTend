@@ -49,6 +49,37 @@ func contributeActiveWish(db *gorm.DB, gain float64) float64 {
 	return routed
 }
 
+// deductExp 扣一笔分（惩罚 / 撤销奖励）：先扣可用积分，不够的部分从进行中的心愿进度扣，进度允许为负。
+// 否则有心愿时新增积分全进了心愿、可用积分常年接近 0，惩罚和撤销都会被「扣到 0 为止」吞掉。
+// 没有进行中的心愿时，可用积分扣到 0 为止。返回实际扣掉的分数（撤销时按它原样退还）。
+func deductExp(db *gorm.DB, amount float64) float64 {
+	if amount <= 0 {
+		return 0
+	}
+	var stats model.UserStats
+	db.First(&stats)
+	actual := amount
+	if shortfall := amount - stats.SpendableExp; shortfall > 0 {
+		stats.SpendableExp = 0
+		var wish model.Wish
+		if err := db.Where("status = ?", "active").Order("purchased_at asc").First(&wish).Error; err == nil {
+			wish.EarnedExp -= shortfall
+			db.Save(&wish)
+		} else {
+			actual = amount - shortfall
+		}
+	} else {
+		stats.SpendableExp -= amount
+	}
+	stats.TotalExp -= actual
+	if stats.TotalExp < 0 {
+		stats.TotalExp = 0
+	}
+	stats.Level = calcLevel(stats.TotalExp)
+	db.Save(&stats)
+	return actual
+}
+
 type CreateWishReq struct {
 	Title     string  `json:"title"`
 	Reason    string  `json:"reason"`
