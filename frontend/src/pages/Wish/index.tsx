@@ -1,12 +1,13 @@
 import {
   CheckCircleFilled,
   DeleteOutlined,
+  EditOutlined,
   HeartOutlined,
   PlusOutlined,
 } from '@ant-design/icons'
 import { Button, Form, Input, InputNumber, Modal, Progress, Space, Spin, message } from 'antd'
 import { useEffect, useState } from 'react'
-import { contributeWish, createWish, deleteWish, getWishes } from '@/api'
+import { contributeWish, createWish, deleteWish, getWishes, updateWish } from '@/api'
 import { FloatingDecorations } from '@/components/Decorations'
 import { useAppStore } from '@/stores/useAppStore'
 import type { Wish } from '@/types'
@@ -19,6 +20,7 @@ export default function WishPage() {
   const [maxConcurrent, setMaxConcurrent] = useState(1)
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingWish, setEditingWish] = useState<Wish | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
   const [fillWish, setFillWish] = useState<Wish | null>(null)
@@ -44,7 +46,14 @@ export default function WishPage() {
   const canAdd = active.length < maxConcurrent
 
   const openCreate = () => {
+    setEditingWish(null)
     form.resetFields()
+    setModalOpen(true)
+  }
+
+  const openEdit = (wish: Wish) => {
+    setEditingWish(wish)
+    form.setFieldsValue({ title: wish.title, reason: wish.reason, price_yuan: wish.price_yuan })
     setModalOpen(true)
   }
 
@@ -52,12 +61,14 @@ export default function WishPage() {
     try {
       const values = await form.validateFields()
       setSubmitting(true)
-      await createWish({
-        title: values.title,
-        reason: values.reason,
-        price_yuan: values.price_yuan,
-      })
-      message.success('心愿已启用，从现在起每一分都在替你挣回它 🌱')
+      const data = { title: values.title, reason: values.reason, price_yuan: values.price_yuan }
+      if (editingWish) {
+        const updated = await updateWish(editingWish.id, data)
+        message.success(updated.status === 'done' ? '🎉 改价后已经挣够了，心愿还清！' : '已更新心愿')
+      } else {
+        await createWish(data)
+        message.success('心愿已启用，从现在起每一分都在替你挣回它 🌱')
+      }
       setModalOpen(false)
       await Promise.all([load(), fetchStats()])
     } catch (e) {
@@ -137,7 +148,7 @@ export default function WishPage() {
         <>
           {/* 进行中的心愿 */}
           {active.map((w) => (
-            <ActiveWishCard key={w.id} wish={w} onDelete={handleDelete} onFill={openFill} />
+            <ActiveWishCard key={w.id} wish={w} onDelete={handleDelete} onFill={openFill} onEdit={openEdit} />
           ))}
 
           {/* 启用入口 / 已满提示 */}
@@ -239,16 +250,18 @@ export default function WishPage() {
 
       {/* 启用心愿弹窗 */}
       <Modal
-        title="启用一个心愿"
+        title={editingWish ? '修改心愿' : '启用一个心愿'}
         open={modalOpen}
         onOk={handleSubmit}
         onCancel={() => setModalOpen(false)}
         confirmLoading={submitting}
-        okText="启用"
+        okText={editingWish ? '保存' : '启用'}
         cancelText="取消"
       >
         <p style={{ color: '#6b7280', fontSize: 13, margin: '8px 0 16px' }}>
-          先用真钱把它买下来（别再犹豫、别再丢），登记在这里，之后每一分都在替你挣回它。
+          {editingWish
+            ? `价格改了，要挣回的积分跟着变；已挣回的 ${formatExp(editingWish.earned_exp)} 分保留。`
+            : '先用真钱把它买下来（别再犹豫、别再丢），登记在这里，之后每一分都在替你挣回它。'}
         </p>
         <Form form={form} layout="vertical">
           <Form.Item name="title" label="想要什么" rules={[{ required: true, message: '填一下心愿名称' }]}>
@@ -281,7 +294,12 @@ export default function WishPage() {
   )
 }
 
-function ActiveWishCard({ wish, onDelete, onFill }: { wish: Wish; onDelete: (w: Wish) => void; onFill: (w: Wish) => void }) {
+function ActiveWishCard({ wish, onDelete, onFill, onEdit }: {
+  wish: Wish
+  onDelete: (w: Wish) => void
+  onFill: (w: Wish) => void
+  onEdit: (w: Wish) => void
+}) {
   // 惩罚可能把进度扣成负数，进度条按 0 显示，数字照实展示
   const pct = wish.target_exp > 0 ? Math.max(0, Math.min(100, Math.round((wish.earned_exp / wish.target_exp) * 100))) : 0
   const remaining = Math.max(0, wish.target_exp - wish.earned_exp)
@@ -308,7 +326,10 @@ function ActiveWishCard({ wish, onDelete, onFill }: { wish: Wish; onDelete: (w: 
             </div>
           )}
         </div>
-        <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => onDelete(wish)} />
+        <div style={{ display: 'flex', flexShrink: 0 }}>
+          <Button size="small" type="text" icon={<EditOutlined />} title="修改" onClick={() => onEdit(wish)} style={{ color: '#4a8a83' }} />
+          <Button size="small" type="text" danger icon={<DeleteOutlined />} title="删除" onClick={() => onDelete(wish)} />
+        </div>
       </div>
 
       <div style={{ marginTop: 16 }}>

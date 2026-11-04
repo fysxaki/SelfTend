@@ -128,6 +128,8 @@ export type WishListResp = { wishes: Wish[]; price_cap_yuan: number; max_concurr
 export const getWishes = () => http.get<WishListResp, WishListResp>('/wishes')
 export const createWish = (data: { title: string; reason?: string; price_yuan: number; target_exp?: number }) =>
   http.post<Wish, Wish>('/wishes', data)
+export const updateWish = (id: number, data: { title: string; reason?: string; price_yuan: number }) =>
+  http.put<Wish, Wish>(`/wishes/${id}`, data)
 export const deleteWish = (id: number) => http.delete(`/wishes/${id}`)
 export type ContributeWishResp = { wish: Wish; applied: number; spendable_exp: number }
 export const contributeWish = (id: number, amount: number) =>

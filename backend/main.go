@@ -129,6 +129,7 @@ func main() {
 		// 心愿（特殊礼物 · 优先注入）
 		api.POST("/wishes", handler.CreateWish(db))
 		api.GET("/wishes", handler.GetWishes(db))
+		api.PUT("/wishes/:id", handler.UpdateWish(db))
 		api.DELETE("/wishes/:id", handler.DeleteWish(db))
 		api.POST("/wishes/:id/contribute", handler.ContributeWish(db))
 

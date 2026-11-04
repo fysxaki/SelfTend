@@ -137,6 +137,69 @@ func CreateWish(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// UpdateWish 修改进行中的心愿（名称 / 理由 / 价格）。价格变了目标积分跟着变（1 分 = 1 元）；
+// 降价后已挣回的超过新目标时，心愿直接还清，多出的部分退回可用积分。
+func UpdateWish(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, _ := strconv.Atoi(c.Param("id"))
+		var req CreateWishReq
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if req.Title == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "心愿名称不能为空"})
+			return
+		}
+		if req.PriceYuan <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "价格必须大于 0"})
+			return
+		}
+		if req.PriceYuan > wishPriceCapYuan {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "超过单笔上限 ¥" + strconv.FormatFloat(wishPriceCapYuan, 'f', 0, 64),
+			})
+			return
+		}
+
+		var wish model.Wish
+		err := db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.First(&wish, id).Error; err != nil {
+				return fmt.Errorf("心愿不存在")
+			}
+			if wish.Status != "active" {
+				return fmt.Errorf("已还清的心愿不能修改")
+			}
+			wish.Title = req.Title
+			wish.Reason = req.Reason
+			wish.PriceYuan = req.PriceYuan
+			wish.TargetExp = req.PriceYuan
+			if surplus := wish.EarnedExp - wish.TargetExp; surplus >= 0 {
+				wish.EarnedExp = wish.TargetExp
+				wish.Status = "done"
+				now := time.Now()
+				wish.DoneAt = &now
+				if surplus > 0 {
+					var stats model.UserStats
+					if err := tx.First(&stats).Error; err != nil {
+						return err
+					}
+					stats.SpendableExp += surplus
+					if err := tx.Save(&stats).Error; err != nil {
+						return err
+					}
+				}
+			}
+			return tx.Save(&wish).Error
+		})
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, wish)
+	}
+}
+
 // GetWishes 获取心愿列表（进行中在前，已还清在后）
 func GetWishes(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
