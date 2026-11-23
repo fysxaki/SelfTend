@@ -562,7 +562,7 @@ export default function SleepPage() {
             <span className="font-script" style={{ fontSize: 26, color: '#6ba39d' }}>Sleep</span>
           </div>
           <Text type="secondary" style={{ fontSize: 13 }}>
-            超过 01:30 入睡扣 10 分 · &lt;6h 扣20% · 6→8h 线性 0~+52（只算到固定起床+30min）· 固定时间起床 +10 · 睡前锚点每项 +{WIND_DOWN_STEP_EXP}
+            01:30~12:00 入睡算晚睡扣 10 分 · &lt;6h 扣20% · 6→8h 线性 0~+52（只算到固定起床+30min）· 固定时间起床 +10 · 睡前锚点每项 +{WIND_DOWN_STEP_EXP}
           </Text>
         </div>
         <Button
