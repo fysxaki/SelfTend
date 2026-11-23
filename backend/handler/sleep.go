@@ -373,13 +373,17 @@ func calcSleepDuration(date, sleepTimeStr, wakeTimeStr string) (float64, error) 
 	return duration, nil
 }
 
-// isSleepPenalized 判断入睡时间是否超过 01:30（凌晨惩罚区间 00:00~05:59）
+// lateSleepWindowEndHour 晚睡判定区间的右端：01:30 之后、12:00 之前入睡都算晚睡。
+// 以前只到 05:59，结果熬到天亮 06:01 才睡反而被当成「晚上正常入睡」不扣分。
+const lateSleepWindowEndHour = 12
+
+// isSleepPenalized 判断入睡时间是否落在 (01:30, 12:00) 晚睡区间
 // 只返回布尔值；扣分由 applyLatePenalty 在记录睡眠时一次性执行
 func isSleepPenalized(sleepTimeStr string) bool {
 	var h, m int
 	fmt.Sscanf(sleepTimeStr, "%d:%d", &h, &m)
-	isLateNight := h >= 0 && h < 6
-	return isLateNight && (h > penaltyThresholdHour || (h == penaltyThresholdHour && m > penaltyThresholdMin))
+	minutes := h*60 + m
+	return minutes > penaltyThresholdHour*60+penaltyThresholdMin && minutes < lateSleepWindowEndHour*60
 }
 
 // applyLatePenalty 晚睡固定扣 lateSleepPenaltyExp 分，返回扣除额（存进 PenaltyExp，撤销时原样退还）
