@@ -75,6 +75,8 @@ const SLEEP_GOAL_MIN = '08:00'
 // Garmin 的「下次睡眠建议时长」由 garmin_sync.py 写入后端 UserConfig（key 与后端 SleepNeedConfigKey 一致）。
 // 有值就自动填进「预计睡眠时长」，免去每天手填；仍可在卡片上手动覆盖。
 const GARMIN_SLEEP_NEED_CONFIG_KEY = 'garmin_sleep_need'
+// 用户在卡片上选的预计睡眠时长（分钟）存后端，刷新 / 换设备不丢；和 Garmin 建议取较长者
+const SLEEP_GOAL_CONFIG_KEY = 'sleep_goal_minutes'
 const SLEEP_GOAL_MIN_MINUTES = 8 * 60
 const SLEEP_GOAL_MAX_MINUTES = 9 * 60
 
@@ -157,17 +159,24 @@ export default function SleepPage() {
     getUserConfig(FIXED_WAKE_CONFIG_KEY)
       .then((resp) => { if (/^\d{2}:\d{2}$/.test(resp.value)) setFixedWake(resp.value) })
       .catch(() => {})
-    // Garmin 建议睡眠时长：只认「明天起床那天」的建议，过期的不用（避免拿昨天的数据倒推今晚）
-    getUserConfig(GARMIN_SLEEP_NEED_CONFIG_KEY)
-      .then((resp) => {
-        if (!resp.value) return
-        const { date, minutes } = JSON.parse(resp.value) as { date?: string; minutes?: number }
-        if (!minutes || date !== dayjs().add(1, 'day').format('YYYY-MM-DD')) return
-        setGarminNeedMinutes(minutes)
-        const clamped = Math.min(SLEEP_GOAL_MAX_MINUTES, Math.max(SLEEP_GOAL_MIN_MINUTES, minutes))
-        setSleepGoal(dayjs().startOf('day').add(clamped, 'minute'))
-      })
-      .catch(() => {})
+    // 预计睡眠时长 = 用户保存的时长与 Garmin 建议取较长者，再夹到 8~9h。
+    // Garmin 只认「明天起床那天」的建议，过期的不用（避免拿昨天的数据倒推今晚）
+    Promise.all([
+      getUserConfig(SLEEP_GOAL_CONFIG_KEY).then((resp) => Number(resp.value) || 0).catch(() => 0),
+      getUserConfig(GARMIN_SLEEP_NEED_CONFIG_KEY)
+        .then((resp) => {
+          if (!resp.value) return 0
+          const { date, minutes } = JSON.parse(resp.value) as { date?: string; minutes?: number }
+          return minutes && date === dayjs().add(1, 'day').format('YYYY-MM-DD') ? minutes : 0
+        })
+        .catch(() => 0),
+    ]).then(([saved, garmin]) => {
+      if (garmin) setGarminNeedMinutes(garmin)
+      const goal = Math.max(saved, garmin)
+      if (!goal) return
+      const clamped = Math.min(SLEEP_GOAL_MAX_MINUTES, Math.max(SLEEP_GOAL_MIN_MINUTES, goal))
+      setSleepGoal(dayjs().startOf('day').add(clamped, 'minute'))
+    })
   }, [])
 
   // 跨过早上 6 点即换到新的一晚，重新拉这一晚的打卡状态
@@ -184,6 +193,16 @@ export default function SleepPage() {
       await setUserConfig(FIXED_WAKE_CONFIG_KEY, next)
     } catch {
       message.error('起床时间保存失败')
+    }
+  }
+
+  const handleSleepGoalChange = async (v: dayjs.Dayjs | null) => {
+    if (!v) return
+    setSleepGoal(v)
+    try {
+      await setUserConfig(SLEEP_GOAL_CONFIG_KEY, String(v.hour() * 60 + v.minute()))
+    } catch {
+      message.error('预计睡眠时长保存失败')
     }
   }
 
@@ -724,7 +743,7 @@ export default function SleepPage() {
                   <span style={{ fontSize: 12, color: '#3d6d68' }}>预计睡</span>
                   <TimePicker
                     value={sleepGoal}
-                    onChange={(v) => v && setSleepGoal(v)}
+                    onChange={handleSleepGoalChange}
                     format="HH:mm"
                     minuteStep={10}
                     allowClear={false}
